@@ -13,11 +13,12 @@
     "type": "git",
     "url": "git://github.com/imaya/zlib.js.git"
   },
-  "dependencies": {},
   "devDependencies": {
     "babel-preset-env": "^1.5.1",
     "babel-preset-power-assert": "^1.0.0",
     "babel-register": "^6.24.1",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-prettier": "^5.0.0",
     "grunt": "^1.0.1",
     "grunt-closure-tools": "^1.0.0",
     "grunt-contrib-concat": "^1.0.1",
@@ -41,7 +42,6 @@
     "bin",
     "package.json"
   ],
-  "optionalDependencies": {},
   "engines": {
     "node": "*"
   },
