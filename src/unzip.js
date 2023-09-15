@@ -1,41 +1,29 @@
-goog.require('FixPhantomJSFunctionApplyBug_StringFromCharCode');
 import { RawInflate } from './rawinflate.js';
 import { CRC32 } from './crc32.js';
 import { Zip } from './zip.js';
 export class Unzip extends Zip {
 	/**
-	 * @param {!(Array.<number>|Uint8Array)} input input buffer.
+	 * @param {!(Uint8Array)} input input buffer.
 	 * @param {Object=} opt_params options.
 	 * @constructor
 	 */
 	constructor(input, opt_params = {}) {
-		/** @type {!(Array.<number>|Uint8Array)} */
-		this.input = input instanceof Array ? new Uint8Array(input) : input;
+		super();
+		this.input = /** @type {!(Uint8Array)} */ input instanceof Array ? new Uint8Array(input) : input;
 		this.ip = /** @type {number} */ 0;
-		/** @type {number} */
-		this.eocdrOffset;
-		/** @type {number} */
-		this.numberOfThisDisk;
-		/** @type {number} */
-		this.startDisk;
-		/** @type {number} */
-		this.totalEntriesThisDisk;
-		/** @type {number} */
-		this.totalEntries;
-		/** @type {number} */
-		this.centralDirectorySize;
-		/** @type {number} */
-		this.centralDirectoryOffset;
-		/** @type {number} */
-		this.commentLength;
-		/** @type {(Array.<number>|Uint8Array)} */
-		this.comment;
-		/** @type {Array.<Zlib.Unzip.FileHeader>} */
-		this.fileHeaderList;
-		/** @type {Object.<string, number>} */
-		this.filenameToIndex;
+		this.eocdrOffset = /** @type {number} */ void 0;
+		this.numberOfThisDisk = /** @type {number} */ void 0;
+		this.startDisk = /** @type {number} */ void 0;
+		this.totalEntriesThisDisk = /** @type {number} */ void 0;
+		this.totalEntries = /** @type {number} */ void 0;
+		this.centralDirectorySize = /** @type {number} */ void 0;
+		this.centralDirectoryOffset = /** @type {number} */ void 0;
+		this.commentLength = /** @type {number} */ void 0;
+		this.comment = /** @type {(Uint8Array)} */ void 0;
+		this.fileHeaderList = /** @type {Array.<Zlib.Unzip.FileHeader>} */ void 0;
+		this.filenameToIndex = /** @type {Object.<string, number>} */ void 0;
 		this.verify = /** @type {boolean} */ opt_params.verify || false;
-		this.password = /** @type {(Array.<number>|Uint8Array)} */ opt_params.password;
+		this.password = /** @type {(Uint8Array)} */ opt_params.password;
 	}
 	static CompressionMethod = Zip.CompressionMethod;
 	/**
@@ -110,7 +98,7 @@ export class Unzip extends Zip {
 	/**
 	 * @param {number} index file header index.
 	 * @param {Object=} opt_params
-	 * @return {!(Array.<number>|Uint8Array)} file data.
+	 * @return {!(Uint8Array)} file data.
 	 */
 	getFileData(index, opt_params = {}) {
 		const input = this.input;
@@ -147,7 +135,7 @@ export class Unzip extends Zip {
 			const crc32 = CRC32.calc(buffer);
 			if (localFileHeader.crc32 !== crc32)
 				throw new Error(
-					'wrong crc: file=0x' + localFileHeader.crc32.toString(16) + ', data=0x' + crc32.toString(16)
+					`wrong crc: file=0x${localFileHeader.crc32.toString(16)}, data=0x${crc32.toString(16)}`
 				);
 		}
 		return buffer;
@@ -165,39 +153,39 @@ export class Unzip extends Zip {
 	/**
 	 * @param {string} filename extract filename.
 	 * @param {Object=} opt_params
-	 * @return {!(Array.<number>|Uint8Array)} decompressed data.
+	 * @return {!(Uint8Array)} decompressed data.
 	 */
 	decompress(filename, opt_params) {
 		if (!this.filenameToIndex) this.parseFileHeader();
 		const index = this.filenameToIndex[filename];
-		if (index === void 0) throw new Error(filename + ' not found');
+		if (index === void 0) throw new Error(`${filename} not found`);
 		return this.getFileData(index, opt_params);
 	}
 	/**
-	 * @param {(Array.<number>|Uint8Array)} password
+	 * @param {(Uint8Array)} password
 	 */
 	setPassword(password) {
 		this.password = password;
 	}
 	/**
-	 * @param {(Array.<number>|Uint32Array|Object)} key
+	 * @param {(Uint32Array|Object)} key
 	 * @param {number} n
 	 * @return {number}
 	 */
 	decode(key, n) {
-		n ^= this.getByte(/** @type {(Array.<number>|Uint32Array)} */ (key));
-		this.updateKeys(/** @type {(Array.<number>|Uint32Array)} */ (key), n);
+		n ^= this.getByte(/** @type {(Uint32Array)} */ (key));
+		this.updateKeys(/** @type {(Uint32Array)} */ (key), n);
 		return n;
 	}
 }
 class FileHeader {
 	/**
-	 * @param {!(Array.<number>|Uint8Array)} input input buffer.
+	 * @param {!(Uint8Array)} input input buffer.
 	 * @param {number} ip input position.
 	 * @constructor
 	 */
 	constructor(input, ip) {
-		this.input = /** @type {!(Array.<number>|Uint8Array)} */ input;
+		this.input = /** @type {!(Uint8Array)} */ input;
 		this.offset = /** @type {number} */ ip;
 		this.parse();
 	}
@@ -236,18 +224,19 @@ class FileHeader {
 }
 class LocalFileHeader {
 	/**
-	 * @param {!(Array.<number>|Uint8Array)} input input buffer.
+	 * @param {!(Uint8Array)} input input buffer.
 	 * @param {number} ip input position.
 	 * @constructor
 	 */
 	constructor(input, ip) {
-		this.input = /** @type {!(Array.<number>|Uint8Array)} */ input;
+		this.input = /** @type {!(Uint8Array)} */ input;
 		this.offset = /** @type {number} */ ip;
 		this.parse();
 	}
 	static Flags = Zip.Flags;
 	parse() {
 		const input = this.input;
+		let ip = /** @type {number} */ 0;
 		if (
 			input[ip++] !== Unzip.LocalFileHeaderSignature[0] ||
 			input[ip++] !== Unzip.LocalFileHeaderSignature[1] ||

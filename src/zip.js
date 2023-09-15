@@ -45,7 +45,7 @@ export class Zip {
 	 */
 	constructor(opt_params = {}) {
 		/** @type {Array.<{
-		 *   buffer: !(Array.<number>|Uint8Array),
+		 *   buffer: !(Uint8Array),
 		 *   option: Object,
 		 *   compressed: boolean,
 		 *   encrypted: boolean,
@@ -53,11 +53,11 @@ export class Zip {
 		 *   crc32: number
 		 * }>} */
 		this.files = [];
-		this.comment = opt_params.comment;
-		this.password;
+		this.comment = /** @type {(Uint8Array)} */ opt_params.comment;
+		this.password = /** @type {(Uint8Array)} */ void 0;
 	}
 	/**
-	 * @param {Array.<number>|Uint8Array} input
+	 * @param {Uint8Array} input
 	 * @param {Object=} opt_params options.
 	 */
 	addFile(input, opt_params = {}) {
@@ -65,18 +65,19 @@ export class Zip {
 		let compressed = /** @type {boolean} */ false;
 		let crc32 = /** @type {number} */ 0;
 		let buffer = input instanceof Array ? new Uint8Array(input) : input;
-		if (typeof opt_params.compressionMethod !== 'number') opt_params.compressionMethod = CompressionMethod.DEFLATE; // default// その場で圧縮する場合
+		if (typeof opt_params.compressionMethod !== 'number')
+			opt_params.compressionMethod = Zip.CompressionMethod.DEFLATE; // default// その場で圧縮する場合
 		if (opt_params.compress)
 			switch (opt_params.compressionMethod) {
-				case CompressionMethod.STORE:
+				case Zip.CompressionMethod.STORE:
 					break;
-				case CompressionMethod.DEFLATE:
+				case Zip.CompressionMethod.DEFLATE:
 					crc32 = CRC32.calc(buffer);
 					buffer = this.deflateWithOption(buffer, opt_params);
 					compressed = true;
 					break;
 				default:
-					throw new Error('unknown compression method:' + opt_params.compressionMethod);
+					throw new Error(`unknown compression method:${opt_params.compressionMethod}`);
 			}
 		this.files.push({
 			buffer,
@@ -89,14 +90,14 @@ export class Zip {
 		});
 	}
 	/**
-	 * @param {(Array.<number>|Uint8Array)} password
+	 * @param {(Uint8Array)} password
 	 */
 	setPassword(password) {
 		this.password = password;
 	}
 	compress() {
 		/** @type {Array.<{
-		 *   buffer: !(Array.<number>|Uint8Array),
+		 *   buffer: !(Uint8Array),
 		 *   option: Object,
 		 *   compressed: boolean,
 		 *   encrypted: boolean,
@@ -105,7 +106,7 @@ export class Zip {
 		 * }>} */
 		const files = this.files;
 		/** @type {{
-		 *   buffer: !(Array.<number>|Uint8Array),
+		 *   buffer: !(Uint8Array),
 		 *   option: Object,
 		 *   compressed: boolean,
 		 *   encrypted: boolean,
@@ -119,19 +120,19 @@ export class Zip {
 			const file = files[i];
 			const opt = file.option; // ファイルの圧縮
 			const filenameLength = opt.filename ? opt.filename.length : 0;
-			const extraFieldLength = opt.extraField ? opt.extraField.length : 0;
+			// const extraFieldLength = opt.extraField ? opt.extraField.length : 0;
 			const commentLength = opt.comment ? opt.comment.length : 0;
 			if (!file.compressed) {
 				file.crc32 = CRC32.calc(file.buffer); // 圧縮されていなかったら圧縮 // 圧縮前に CRC32 の計算をしておく
 				switch (opt.compressionMethod) {
-					case CompressionMethod.STORE:
+					case Zip.CompressionMethod.STORE:
 						break;
-					case CompressionMethod.DEFLATE:
+					case Zip.CompressionMethod.DEFLATE:
 						file.buffer = this.deflateWithOption(file.buffer, opt);
 						file.compressed = true;
 						break;
 					default:
-						throw new Error('unknown compression method:' + opt.compressionMethod);
+						throw new Error(`unknown compression method:${opt.compressionMethod}`);
 				}
 			}
 			if (opt.password !== void 0 || this.password !== void 0) {
@@ -272,15 +273,15 @@ export class Zip {
 		return output;
 	}
 	/**
-	 * @param {!(Array.<number>|Uint8Array)} input
+	 * @param {!(Uint8Array)} input
 	 * @param {Object=} opt_params options.
-	 * @return {!(Array.<number>|Uint8Array)}
+	 * @return {!(Uint8Array)}
 	 */
 	deflateWithOption = function (input, opt_params) {
 		return new RawDeflate(input, opt_params.deflateOption).compress();
 	};
 	/**
-	 * @param {(Array.<number>|Uint32Array)} key
+	 * @param {(Uint32Array)} key
 	 * @return {number}
 	 */
 	getByte(key) {
@@ -288,17 +289,17 @@ export class Zip {
 		return ((tmp * (tmp ^ 1)) >> 8) & 0xff;
 	}
 	/**
-	 * @param {(Array.<number>|Uint32Array|Object)} key
+	 * @param {(Uint32Array|Object)} key
 	 * @param {number} n
 	 * @return {number}
 	 */
 	encode(key, n) {
-		const tmp = this.getByte(/** @type {(Array.<number>|Uint32Array)} */ (key));
-		this.updateKeys(/** @type {(Array.<number>|Uint32Array)} */ (key), n);
+		const tmp = this.getByte(/** @type {(Uint32Array)} */ (key));
+		this.updateKeys(/** @type {(Uint32Array)} */ (key), n);
 		return tmp ^ n;
 	}
 	/**
-	 * @param {(Array.<number>|Uint32Array)} key
+	 * @param {(Uint32Array)} key
 	 * @param {number} n
 	 */
 	updateKeys(key, n) {
@@ -307,8 +308,8 @@ export class Zip {
 		key[2] = CRC32.single(key[2], key[1] >>> 24);
 	}
 	/**
-	 * @param {(Array.<number>|Uint8Array)} password
-	 * @return {!(Array.<number>|Uint32Array|Object)}
+	 * @param {(Uint8Array)} password
+	 * @return {!(Uint32Array|Object)}
 	 */
 	createEncryptionKey(password) {
 		const key = new Uint32Array([305419896, 591751049, 878082192]);

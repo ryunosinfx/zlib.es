@@ -6,7 +6,7 @@ const ZLIB_CRC32_COMPACT = false;
 export class CRC32 {
 	/**
 	 * CRC32 ハッシュ値を取得
-	 * @param {!(Array.<number>|Uint8Array)} data data byte array.
+	 * @param {!(Uint8Array)} data data byte array.
 	 * @param {number=} pos data position.
 	 * @param {number=} length data length.
 	 * @return {number} CRC32.
@@ -16,7 +16,7 @@ export class CRC32 {
 	}
 	/**
 	 * CRC32ハッシュ値を更新
-	 * @param {!(Array.<number>|Uint8Array)} data data byte array.
+	 * @param {!(Uint8Array)} data data byte array.
 	 * @param {number} crc CRC32.
 	 * @param {number=} pos data position.
 	 * @param {number=} length data length.
@@ -85,7 +85,7 @@ export class CRC32 {
 		0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d,
 	];
 	static buildCompactTable() {
-		const table = /** @type {!(Array.<number>|Uint32Array)} */ new Uint32Array(256);
+		const table = /** @type {!(Uint32Array)} */ new Uint32Array(256);
 		for (let i = 0; i < 256; ++i) {
 			let c = i;
 			for (let j = 0; j < 8; ++j) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
@@ -94,7 +94,7 @@ export class CRC32 {
 		return table;
 	}
 	/**
-	 * @type {!(Array.<number>|Uint32Array)} CRC-32 Table.
+	 * @type {!(Uint32Array)} CRC-32 Table.
 	 * @const
 	 */
 	static Table = ZLIB_CRC32_COMPACT ? CRC32.buildCompactTable() : new Uint32Array(CRC32.Table_);

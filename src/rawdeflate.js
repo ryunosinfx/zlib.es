@@ -62,7 +62,7 @@ export class RawDeflate {
 					table.push([i - 280 + 0x0c0, 8]);
 					break;
 				default:
-					throw 'invalid literal: ' + i;
+					throw `invalid literal: ${i}`;
 			}
 		return table;
 	})();
@@ -70,7 +70,7 @@ export class RawDeflate {
 	 * Raw Deflate 実装
 	 *
 	 * @constructor
-	 * @param {!(Array.<number>|Uint8Array)} input 符号化する対象のバッファ.
+	 * @param {!(Uint8Array)} input 符号化する対象のバッファ.
 	 * @param {Object=} opt_params option parameters.
 	 *
 	 * typed array が使用可能なとき、outputBuffer が Array は自動的に Uint8Array に
@@ -81,13 +81,7 @@ export class RawDeflate {
 	constructor(input, opt_params) {
 		this.compressionType = /** @type {Zlib.RawDeflate.CompressionType} */ RawDeflate.CompressionType.DYNAMIC;
 		this.lazy = /** @type {number} */ 0;
-		/** @type {!(Array.<number>|Uint32Array)} */
-		this.freqsLitLen;
-		/** @type {!(Array.<number>|Uint32Array)} */
-		this.freqsDist;
-		this.input = /** @type {!(Array.<number>|Uint8Array)} */ input instanceof Array ? new Uint8Array(input) : input;
-		/** @type {!(Array.<number>|Uint8Array)} output output buffer. */
-		this.output;
+		this.input = /** @type {!(Uint8Array)} */ input instanceof Array ? new Uint8Array(input) : input;
 		this.op = /** @type {number} pos output buffer position. */ 0;
 		if (opt_params) {
 			if (opt_params.lazy) this.lazy = opt_params.lazy; // option parameters
@@ -103,7 +97,7 @@ export class RawDeflate {
 	}
 	/**
 	 * DEFLATE ブロックの作成
-	 * @return {!(Array.<number>|Uint8Array)} 圧縮済み byte array.
+	 * @return {!(Uint8Array)} 圧縮済み byte array.
 	 */
 	ompress() {
 		const input = this.input; // compression
@@ -130,9 +124,9 @@ export class RawDeflate {
 	}
 	/**
 	 * 非圧縮ブロックの作成
-	 * @param {!(Array.<number>|Uint8Array)} blockArray ブロックデータ byte array.
+	 * @param {!(Uint8Array)} blockArray ブロックデータ byte array.
 	 * @param {!boolean} isFinalBlock 最後のブロックならばtrue.
-	 * @return {!(Array.<number>|Uint8Array)} 非圧縮ブロック byte array.
+	 * @return {!(Uint8Array)} 非圧縮ブロック byte array.
 	 */
 	makeNocompressBlock(blockArray, isFinalBlock) {
 		let op = this.op;
@@ -159,9 +153,9 @@ export class RawDeflate {
 	}
 	/**
 	 * 固定ハフマンブロックの作成
-	 * @param {!(Array.<number>|Uint8Array)} blockArray ブロックデータ byte array.
+	 * @param {!(Uint8Array)} blockArray ブロックデータ byte array.
 	 * @param {!boolean} isFinalBlock 最後のブロックならばtrue.
-	 * @return {!(Array.<number>|Uint8Array)} 固定ハフマン符号化ブロック byte array.
+	 * @return {!(Uint8Array)} 固定ハフマン符号化ブロック byte array.
 	 */
 	makeFixedHuffmanBlock(blockArray, isFinalBlock) {
 		const stream = new BitStream(new Uint8Array(this.output.buffer), this.op);
@@ -175,9 +169,9 @@ export class RawDeflate {
 	}
 	/**
 	 * 動的ハフマンブロックの作成
-	 * @param {!(Array.<number>|Uint8Array)} blockArray ブロックデータ byte array.
+	 * @param {!(Uint8Array)} blockArray ブロックデータ byte array.
 	 * @param {!boolean} isFinalBlock 最後のブロックならばtrue.
-	 * @return {!(Array.<number>|Uint8Array)} 動的ハフマン符号ブロック byte array.
+	 * @return {!(Uint8Array)} 動的ハフマン符号ブロック byte array.
 	 */
 	makeDynamicHuffmanBlock(blockArray, isFinalBlock) {
 		const stream = new BitStream(new Uint8Array(this.output.buffer), this.op);
@@ -190,6 +184,7 @@ export class RawDeflate {
 		/** @const @type {Array.<number>} */
 		const hclenOrder = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15];
 		const bfinal = isFinalBlock ? 1 : 0; // header
+		const transLengths = /** @type {Array} */ new Array(19);
 		const btype = RawDeflate.CompressionType.DYNAMIC;
 		stream.writeBits(bfinal, 1, true);
 		stream.writeBits(btype, 2, true);
@@ -198,16 +193,16 @@ export class RawDeflate {
 		const litLenCodes = this.getCodesFromLengths_(litLenLengths);
 		const distLengths = this.getLengths_(this.freqsDist, 7);
 		const distCodes = this.getCodesFromLengths_(distLengths);
-		for (hlit = 286; hlit > 257 && litLenLengths[hlit - 1] === 0; hlit--) {} // HLIT の決定
-		for (hdist = 30; hdist > 1 && distLengths[hdist - 1] === 0; hdist--) {} // HDIST の決定
+		for (hlit = 286; hlit > 257 && litLenLengths[hlit - 1] === 0; ) hlit--; // HLIT の決定
+		for (hdist = 30; hdist > 1 && distLengths[hdist - 1] === 0; ) hdist--; // HDIST の決定
 		/** @type {{
-		 *   codes: !(Array.<number>|Uint32Array),
-		 *   freqs: !(Array.<number>|Uint8Array)
+		 *   codes: !(Uint32Array),
+		 *   freqs: !(Uint8Array)
 		 * }} */
 		const treeSymbols = this.getTreeSymbols_(hlit, litLenLengths, hdist, distLengths); // HCLEN
 		const treeLengths = this.getLengths_(treeSymbols.freqs, 7);
 		for (let i = 0; i < 19; i++) transLengths[i] = treeLengths[hclenOrder[i]];
-		for (hclen = 19; hclen > 4 && transLengths[hclen - 1] === 0; hclen--) {}
+		for (hclen = 19; hclen > 4 && transLengths[hclen - 1] === 0; ) hclen--;
 		const treeCodes = this.getCodesFromLengths_(treeLengths);
 		stream.writeBits(hlit - 257, 5, true); // 出力
 		stream.writeBits(hdist - 1, 5, true);
@@ -231,7 +226,7 @@ export class RawDeflate {
 						bitlen = 7;
 						break;
 					default:
-						throw 'invalid code: ' + code;
+						throw `invalid code: ${code}`;
 				}
 				stream.writeBits(code, bitlen, true);
 			}
@@ -241,7 +236,7 @@ export class RawDeflate {
 	}
 	/**
 	 * 動的ハフマン符号化(カスタムハフマンテーブル)
-	 * @param {!(Array.<number>|Uint16Array)} dataArray LZ77 符号化済み byte array.
+	 * @param {!(Uint16Array)} dataArray LZ77 符号化済み byte array.
 	 * @param {!Zlib.BitStream} stream 書き込み用ビットストリーム.
 	 * @return {!Zlib.BitStream} ハフマン符号化済みビットストリームオブジェクト.
 	 */
@@ -264,7 +259,7 @@ export class RawDeflate {
 	}
 	/**
 	 * 固定ハフマン符号化
-	 * @param {!(Array.<number>|Uint16Array)} dataArray LZ77 符号化済み byte array.
+	 * @param {!(Uint16Array)} dataArray LZ77 符号化済み byte array.
 	 * @param {!Zlib.BitStream} stream 書き込み用ビットストリーム.
 	 * @return {!Zlib.BitStream} ハフマン符号化済みビットストリームオブジェクト.
 	 */
@@ -282,20 +277,19 @@ export class RawDeflate {
 	}
 	/**
 	 * LZ77 実装
-	 * @param {!(Array.<number>|Uint8Array)} dataArray LZ77 符号化するバイト配列.
-	 * @return {!(Array.<number>|Uint16Array)} LZ77 符号化した配列.
+	 * @param {!(Uint8Array)} dataArray LZ77 符号化するバイト配列.
+	 * @return {!(Uint16Array)} LZ77 符号化した配列.
 	 */
 	lz77(dataArray) {
 		const table = /** @type {Object.<number, Array.<number>>} chained-hash-table */ {};
 		const windowSize = /** @const @type {number} */ RawDeflate.WindowSize;
-		/** @type {Zlib.RawDeflate.Lz77Match} previous longest match */
-		var prevMatch;
-		const lz77buf = /** @type {!(Array.<number>|Uint16Array)} lz77 buffer */ new Uint16Array(dataArray.length * 2);
+		let prevMatch;
+		const lz77buf = /** @type {!(Uint16Array)} lz77 buffer */ new Uint16Array(dataArray.length * 2);
 		let pos = /** @type {number} lz77 output buffer pointer */ 0;
 		let skipLength = /** @type {number} lz77 skip length */ 0;
-		/** @type {!(Array.<number>|Uint32Array)} */
+		/** @type {!(Uint32Array)} */
 		const freqsLitLen = new Uint32Array(286);
-		/** @type {!(Array.<number>|Uint32Array)} */
+		/** @type {!(Uint32Array)} */
 		const freqsDist = new Uint32Array(30);
 		/** @type {number} */
 		const lazy = this.lazy;
@@ -378,7 +372,7 @@ export class RawDeflate {
 			matchMax = 0;
 		const dl = data.length;
 		permatch: for (let i = 0, l = matchList.length; i < l; i++) {
-			let match = matchList[l - i - 1]; // 候補を後ろから 1 つずつ絞り込んでゆく
+			const match = matchList[l - i - 1]; // 候補を後ろから 1 つずつ絞り込んでゆく
 			let matchLength = RawDeflate.Lz77MinLength;
 			if (matchMax > RawDeflate.Lz77MinLength) {
 				for (let j = matchMax; j > RawDeflate.Lz77MinLength; j--)
@@ -403,12 +397,12 @@ export class RawDeflate {
 	 * Tree-Transmit Symbols の算出
 	 * reference: PuTTY Deflate implementation
 	 * @param {number} hlit HLIT.
-	 * @param {!(Array.<number>|Uint8Array)} litlenLengths リテラルと長さ符号の符号長配列.
+	 * @param {!(Uint8Array)} litlenLengths リテラルと長さ符号の符号長配列.
 	 * @param {number} hdist HDIST.
-	 * @param {!(Array.<number>|Uint8Array)} distLengths 距離符号の符号長配列.
+	 * @param {!(Uint8Array)} distLengths 距離符号の符号長配列.
 	 * @return {{
-	 *   codes: !(Array.<number>|Uint32Array),
-	 *   freqs: !(Array.<number>|Uint8Array)
+	 *   codes: !(Uint32Array),
+	 *   freqs: !(Uint8Array)
 	 * }} Tree-Transmit Symbols.
 	 */
 	getTreeSymbols_(hlit, litlenLengths, hdist, distLengths) {
@@ -422,7 +416,7 @@ export class RawDeflate {
 		let nResult = 0; // 符号化
 		for (let i = 0; i < srcLen; i += j) {
 			const srcI = src[i];
-			for (j = 1; i + j < l && src[i + j] === srcI; ++j) {} // Run Length Encoding
+			for (j = 1; i + j < srcLen && src[i + j] === srcI; ) ++j; // Run Length Encoding
 			let runLength = j;
 			if (srcI === 0) {
 				if (runLength < 3)
@@ -472,15 +466,15 @@ export class RawDeflate {
 	}
 	/**
 	 * ハフマン符号の長さを取得する
-	 * @param {!(Array.<number>|Uint8Array|Uint32Array)} freqs 出現カウント.
+	 * @param {!(Uint8Array|Uint32Array)} freqs 出現カウント.
 	 * @param {number} limit 符号長の制限.
-	 * @return {!(Array.<number>|Uint8Array)} 符号長配列.
+	 * @return {!(Uint8Array)} 符号長配列.
 	 * @private
 	 */
 	getLengths_(freqs, limit) {
 		const nSymbols = /** @type {number} */ freqs.length;
 		const heap = /** @type {Zlib.Heap} */ new Heap(2 * RawDeflate.HUFMAX);
-		const length = /** @type {!(Array.<number>|Uint8Array)} */ new Uint8Array(nSymbols);
+		const length = /** @type {!(Uint8Array)} */ new Uint8Array(nSymbols);
 		const heapHalfLen = heap.length / 2;
 		for (let i = 0; i < nSymbols; ++i) if (freqs[i] > 0) heap.push(i, freqs[i]); // ヒープの構築
 		const nodes = new Array(heapHalfLen);
@@ -510,16 +504,16 @@ export class RawDeflate {
 	}
 	/**
 	 * Reverse Package Merge Algorithm.
-	 * @param {!(Array.<number>|Uint32Array)} freqs sorted probability.
+	 * @param {!(Uint32Array)} freqs sorted probability.
 	 * @param {number} symbols number of symbols.
 	 * @param {number} limit code length limit.
-	 * @return {!(Array.<number>|Uint8Array)} code lengths.
+	 * @return {!(Uint8Array)} code lengths.
 	 */
 	reversePackageMerge_(freqs, symbols, limit) {
 		const limitM1 = limit - 1;
-		const minimumCost = /** @type {!(Array.<number>|Uint16Array)} */ new Uint16Array(limit);
-		const flag = /** @type {!(Array.<number>|Uint8Array)} */ new Uint8Array(limit);
-		const codeLength = /** @type {!(Array.<number>|Uint8Array)} */ new Uint8Array(symbols);
+		const minimumCost = /** @type {!(Uint16Array)} */ new Uint16Array(limit);
+		const flag = /** @type {!(Uint8Array)} */ new Uint8Array(limit);
+		const codeLength = /** @type {!(Uint8Array)} */ new Uint8Array(symbols);
 		const value = /** @type {Array} */ new Array(limit);
 		const type = /** @type {Array} */ new Array(limit);
 		const currentPosition = /** @type {Array.<number>} */ new Array(limit);
@@ -556,7 +550,7 @@ export class RawDeflate {
 		}
 		for (let j = limit - 2; j >= 0; --j) {
 			let i = 0;
-			const next = currentPosition[j + 1];
+			let next = currentPosition[j + 1];
 			const valueJ0 = value[j];
 			const valueJ1 = value[j + 1];
 			const typeJ = type[j];
@@ -581,8 +575,8 @@ export class RawDeflate {
 	/**
 	 * 符号長配列からハフマン符号を取得する
 	 * reference: PuTTY Deflate implementation
-	 * @param {!(Array.<number>|Uint8Array)} lengths 符号長配列.
-	 * @return {!(Array.<number>|Uint16Array)} ハフマン符号配列.
+	 * @param {!(Uint8Array)} lengths 符号長配列.
+	 * @return {!(Uint16Array)} ハフマン符号配列.
 	 * @private
 	 */
 	getCodesFromLengths_(lengths) {
@@ -625,7 +619,7 @@ class Lz77Match {
 	 * 長さ符号テーブル.
 	 * [コード, 拡張ビット, 拡張ビット長] の配列となっている.
 	 * @const
-	 * @type {!(Array.<number>|Uint32Array)}
+	 * @type {!(Uint32Array)}
 	 */
 	static LengthCodeTable = Lz77Match.buildLengthCodeTable();
 	static buildLengthCodeTable() {
@@ -644,93 +638,64 @@ class Lz77Match {
 		switch (true) {
 			case length === 3:
 				return [257, length - 3, 0];
-				break;
 			case length === 4:
 				return [258, length - 4, 0];
-				break;
 			case length === 5:
 				return [259, length - 5, 0];
-				break;
 			case length === 6:
 				return [260, length - 6, 0];
-				break;
 			case length === 7:
 				return [261, length - 7, 0];
-				break;
 			case length === 8:
 				return [262, length - 8, 0];
-				break;
 			case length === 9:
 				return [263, length - 9, 0];
-				break;
 			case length === 10:
 				return [264, length - 10, 0];
-				break;
 			case length <= 12:
 				return [265, length - 11, 1];
-				break;
 			case length <= 14:
 				return [266, length - 13, 1];
-				break;
 			case length <= 16:
 				return [267, length - 15, 1];
-				break;
 			case length <= 18:
 				return [268, length - 17, 1];
-				break;
 			case length <= 22:
 				return [269, length - 19, 2];
-				break;
 			case length <= 26:
 				return [270, length - 23, 2];
-				break;
 			case length <= 30:
 				return [271, length - 27, 2];
-				break;
 			case length <= 34:
 				return [272, length - 31, 2];
-				break;
 			case length <= 42:
 				return [273, length - 35, 3];
-				break;
 			case length <= 50:
 				return [274, length - 43, 3];
-				break;
 			case length <= 58:
 				return [275, length - 51, 3];
-				break;
 			case length <= 66:
 				return [276, length - 59, 3];
-				break;
 			case length <= 82:
 				return [277, length - 67, 4];
-				break;
 			case length <= 98:
 				return [278, length - 83, 4];
-				break;
 			case length <= 114:
 				return [279, length - 99, 4];
-				break;
 			case length <= 130:
 				return [280, length - 115, 4];
-				break;
 			case length <= 162:
 				return [281, length - 131, 5];
-				break;
 			case length <= 194:
 				return [282, length - 163, 5];
-				break;
 			case length <= 226:
 				return [283, length - 195, 5];
-				break;
 			case length <= 257:
 				return [284, length - 227, 5];
-				break;
 			case length === 258:
 				return [285, length - 258, 0];
-				break;
 			default:
-				throw 'invalid length: ' + length;
+				throw `invalid length: ${length}`;
 		}
 	}
 	/**
@@ -743,94 +708,64 @@ class Lz77Match {
 		switch (true) {
 			case dist === 1:
 				return [0, dist - 1, 0];
-				break;
 			case dist === 2:
 				return [1, dist - 2, 0];
-				break;
 			case dist === 3:
 				return [2, dist - 3, 0];
-				break;
 			case dist === 4:
 				return [3, dist - 4, 0];
-				break;
 			case dist <= 6:
 				return [4, dist - 5, 1];
-				break;
 			case dist <= 8:
 				return [5, dist - 7, 1];
-				break;
 			case dist <= 12:
 				return [6, dist - 9, 2];
-				break;
 			case dist <= 16:
 				return [7, dist - 13, 2];
-				break;
 			case dist <= 24:
 				return [8, dist - 17, 3];
-				break;
 			case dist <= 32:
 				return [9, dist - 25, 3];
-				break;
 			case dist <= 48:
 				return [10, dist - 33, 4];
-				break;
 			case dist <= 64:
 				return [11, dist - 49, 4];
-				break;
 			case dist <= 96:
 				return [12, dist - 65, 5];
-				break;
 			case dist <= 128:
 				return [13, dist - 97, 5];
-				break;
 			case dist <= 192:
 				return [14, dist - 129, 6];
-				break;
 			case dist <= 256:
 				return [15, dist - 193, 6];
-				break;
 			case dist <= 384:
 				return [16, dist - 257, 7];
-				break;
 			case dist <= 512:
 				return [17, dist - 385, 7];
-				break;
 			case dist <= 768:
 				return [18, dist - 513, 8];
-				break;
 			case dist <= 1024:
 				return [19, dist - 769, 8];
-				break;
 			case dist <= 1536:
 				return [20, dist - 1025, 9];
-				break;
 			case dist <= 2048:
 				return [21, dist - 1537, 9];
-				break;
 			case dist <= 3072:
 				return [22, dist - 2049, 10];
-				break;
 			case dist <= 4096:
 				return [23, dist - 3073, 10];
-				break;
 			case dist <= 6144:
 				return [24, dist - 4097, 11];
-				break;
 			case dist <= 8192:
 				return [25, dist - 6145, 11];
-				break;
 			case dist <= 12288:
 				return [26, dist - 8193, 12];
-				break;
 			case dist <= 16384:
 				return [27, dist - 12289, 12];
-				break;
 			case dist <= 24576:
 				return [28, dist - 16385, 13];
-				break;
 			case dist <= 32768:
 				return [29, dist - 24577, 13];
-				break;
 			default:
 				throw 'invalid distance';
 		}

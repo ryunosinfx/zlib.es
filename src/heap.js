@@ -66,7 +66,7 @@ export class Heap {
 		heap[0] = heap[this.length];
 		heap[1] = heap[this.length + 1];
 		let parent = 0; // ルートノードから下がっていく
-		while (true) {
+		while (heap) {
 			let current = this.getChild(parent);
 			if (current >= this.length) break; // 範囲チェック
 			if (current + 2 < this.length && heap[current + 2] > heap[current]) current += 2; // 隣のノードと比較して、隣の方が値が大きければ隣を現在ノードとして選択

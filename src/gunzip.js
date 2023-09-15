@@ -8,10 +8,9 @@ import { GunzipMember } from './gunzip_member.js';
 export class Gunzip {
 	/**
 	 * @constructor
-	 * @param {!(Array|Uint8Array)} input input buffer.
-	 * @param {Object=} opt_params option parameters.
+	 * @param {!(Uint8Array)} input input buffer.
 	 */
-	constructor(input, opt_params) {
+	constructor(input) {
 		this.input = input; // input buffer.
 		this.ip = 0; //input buffer pointer.
 		this.member = [];
@@ -26,7 +25,7 @@ export class Gunzip {
 	}
 	/**
 	 * inflate gzip data.
-	 * @return {!(Array.<number>|Uint8Array)} inflated buffer.
+	 * @return {!(Uint8Array)} inflated buffer.
 	 */
 	decompress() {
 		const il = this.input.length; //input length.
@@ -99,12 +98,12 @@ export class Gunzip {
 		member.crc32 = crc32;
 		if (CRC32.calc(inflated) !== crc32)
 			throw new Error(
-				'invalid CRC-32 checksum: 0x' + CRC32.calc(inflated).toString(16) + ' / 0x' + crc32.toString(16)
+				`invalid CRC-32 checksum: 0x${CRC32.calc(inflated).toString(16)} / 0x${crc32.toString(16)}`
 			);
 		const isize2 = (input[ipr++] | (input[ipr++] << 8) | (input[ipr++] << 16) | (input[ipr++] << 24)) >>> 0; // input size
 		member.isize = isize2;
 		if ((inflated.length & 0xffffffff) !== isize2)
-			throw new Error('invalid input size: ' + (inflated.length & 0xffffffff) + ' / ' + isize2);
+			throw new Error(`invalid input size: ${inflated.length & 0xffffffff} / ${isize2}`);
 		this.member.push(member);
 		this.ip = ipr;
 	}
@@ -116,7 +115,7 @@ export class Gunzip {
 		return ip + length;
 	}
 	/**
-	 * @return {!(Array.<number>|Uint8Array)}
+	 * @return {!(Uint8Array)}
 	 */
 	concatMember() {
 		const members = /** @type {Array.<Zlib.GunzipMember>} */ this.member;

@@ -5,39 +5,34 @@ export class RawInflateStream {
 	static ZLIB_STREAM_RAW_INFLATE_BUFFER_SIZE = 0x8000;
 	//-----------------------------------------------------------------------------
 	/**
-	 * @param {!(Uint8Array|Array.<number>)} input input buffer.
+	 * @param {!(Uint8Array.<number>)} input input buffer.
 	 * @param {number} ip input buffer pointer.
 	 * @param {number=} opt_buffersize buffer block size.
 	 * @constructor
 	 */
 	constructor(input, ip, opt_buffersize) {
-		this.blocks = /** @type {!Array.<(Array|Uint8Array)>} */ [];
+		this.blocks = /** @type {!Array.<(Uint8Array)>} */ [];
 		/** @type {number} block size. */
 		this.bufferSize = opt_buffersize ? opt_buffersize : RawInflateStream.ZLIB_STREAM_RAW_INFLATE_BUFFER_SIZE;
 		this.totalpos = /** @type {!number} total output buffer pointer. */ 0;
 		this.ip = ip === /** @type {!number} input buffer pointer. */ void 0 ? 0 : ip;
 		this.bitsbuf = /** @type {!number} bit stream reader buffer. */ 0;
 		this.bitsbuflen = /** @type {!number} bit stream reader buffer size. */ 0;
-		this.input = /** @type {!(Array|Uint8Array)} input buffer. */ new Uint8Array(input);
-		this.output = /** @type {!(Uint8Array|Array)} output buffer. */ new Uint8Array(this.bufferSize);
+		this.input = /** @type {!(Uint8Array)} input buffer. */ new Uint8Array(input);
+		this.output = /** @type {!(Uint8Array)} output buffer. */ new Uint8Array(this.bufferSize);
 		this.op = /** @type {!number} output buffer pointer. */ 0;
 		this.bfinal = /** @type {boolean} is final block flag. */ false;
-		/** @type {number} uncompressed block length. */
-		this.blockLength;
+		this.blockLength = /** @type {number} uncompressed block length. */ void 0;
 		this.resize = /** @type {boolean} resize flag for memory size optimization. */ false;
-		/** @type {Array} */
-		this.litlenTable;
-		/** @type {Array} */
-		this.distTable;
+		this.litlenTable = /** @type {Array} */ void 0;
+		this.distTable = /** @type {Array} */ void 0;
 		this.sp = /** @type {number} */ 0; // stream pointer
 		this.status = /** @type {Zlib.RawInflateStream.Status} */ RawInflateStream.Status.INITIALIZED;
 		//backup  //
 		/** @type {!number} */
-		this.ip_;
-		/** @type {!number} */
-		this.bitsbuflen_;
-		/** @type {!number} */
-		this.bitsbuf_;
+		this.ip_ = /** @type {!number} */ void 0;
+		this.bitsbuflen_ = /** @type {!number} */ void 0;
+		this.bitsbuf_ = /** @type {!number} */ void 0;
 	}
 	/**
 	 * @enum {number}
@@ -61,7 +56,7 @@ export class RawInflateStream {
 	};
 	/**
 	 * decompress.
-	 * @return {!(Uint8Array|Array)} inflated buffer.
+	 * @return {!(Uint8Array)} inflated buffer.
 	 */
 	decompress(newInput, ip) {
 		let stop = /** @type {boolean} */ false;
@@ -164,7 +159,7 @@ export class RawInflateStream {
 	 * @type {!Array}
 	 */
 	static FixedLiteralLengthTable = (function () {
-		var lengths = new Uint8Array(288);
+		const lengths = new Uint8Array(288);
 		for (let i = 0, il = lengths.length; i < il; ++i) lengths[i] = i <= 143 ? 8 : i <= 255 ? 9 : i <= 279 ? 7 : 8;
 		return Huffman.buildHuffmanTable(lengths);
 	})();
@@ -173,7 +168,7 @@ export class RawInflateStream {
 	 * @const
 	 * @type {!Array}
 	 */
-	static FixedDistanceTable = (function (table) {
+	static FixedDistanceTable = (function () {
 		const lengths = new Uint8Array(30);
 		for (let i = 0, il = lengths.length; i < il; ++i) lengths[i] = 5;
 		return Huffman.buildHuffmanTable(lengths);
@@ -182,7 +177,7 @@ export class RawInflateStream {
 	 * parse deflated block.
 	 */
 	readBlockHeader = function () {
-		const hdr = /** @type {number} header */ this.readBits(3);
+		let hdr = /** @type {number} header */ this.readBits(3);
 		this.status = RawInflateStream.Status.BLOCK_HEADER_START;
 		this.save_();
 		if (hdr < 0) {
@@ -202,7 +197,7 @@ export class RawInflateStream {
 				this.currentBlockType = RawInflateStream.BlockType.DYNAMIC;
 				break;
 			default: // reserved or other
-				throw new Error('unknown BTYPE: ' + hdr);
+				throw new Error(`unknown BTYPE: ${hdr}`);
 		}
 		this.status = RawInflateStream.Status.BLOCK_HEADER_END;
 	};
@@ -217,7 +212,7 @@ export class RawInflateStream {
 		const input = this.input;
 		let ip = this.ip;
 		/** @type {number} input and output byte. */
-		var octet;
+		let octet;
 		while (bitsbuflen < length) {
 			if (input.length <= ip) return -1; // not enough buffer
 			octet = input[ip++]; // input byte
@@ -242,7 +237,7 @@ export class RawInflateStream {
 		let bitsbuflen = this.bitsbuflen;
 		const input = this.input;
 		let ip = this.ip;
-		const codeTable = /** @type {!(Array|Uint8Array)} huffman code table */ table[0];
+		const codeTable = /** @type {!(Uint8Array)} huffman code table */ table[0];
 		const maxCodeLength = /** @type {number} */ table[1];
 		/** @type {number} input byte */
 		let octet;
@@ -255,7 +250,7 @@ export class RawInflateStream {
 		const codeWithLength =
 			/** @type {number} code length & code (16bit, 16bit) */ codeTable[bitsbuf & ((1 << maxCodeLength) - 1)]; // read max length
 		const codeLength = /** @type {number} code bits length */ codeWithLength >>> 16;
-		if (codeLength > bitsbuflen) throw new Error('invalid code length: ' + codeLength);
+		if (codeLength > bitsbuflen) throw new Error(`invalid code length: ${codeLength}`);
 		this.bitsbuf = bitsbuf >> codeLength;
 		this.bitsbuflen = bitsbuflen - codeLength;
 		this.ip = ip;
@@ -337,9 +332,7 @@ export class RawInflateStream {
 	 * parse dynamic huffman block.
 	 */
 	parseDynamicHuffmanBlock() {
-		const codeLengths = /** @type {!(Uint8Array|Array)} code lengths. */ new Uint8Array(
-			RawInflateStream.Order.length
-		);
+		const codeLengths = /** @type {!(Uint8Array)} code lengths. */ new Uint8Array(RawInflateStream.Order.length);
 		this.status = RawInflateStream.Status.BLOCK_BODY_START;
 		this.save_();
 		const hlit = /** @type {number} number of literal and length codes. */ this.readBits(5) + 257;
@@ -367,7 +360,7 @@ export class RawInflateStream {
 		}
 		const h = hlit + hdist;
 		const codeLengthsTable = /** @type {!Array} code lengths table. */ Huffman.buildHuffmanTable(codeLengths); // decode length table
-		const lengthTable = /** @type {!(Uint8Array|Array.<number>)} code length table. */ new Uint8Array(h);
+		const lengthTable = /** @type {!(Uint8Array.<number>)} code length table. */ new Uint8Array(h);
 		for (let i = 0; i < h; ) {
 			let bits = /** @type {number} */ 0;
 			const code = this.readCodeByTable(codeLengthsTable);
@@ -413,7 +406,7 @@ export class RawInflateStream {
 		const dist = this.distTable;
 		let olength = output.length;
 		this.status = RawInflateStream.Status.DECODE_BLOCK_START;
-		while (true) {
+		while (output) {
 			this.save_();
 			const code = /** @type {number} huffman code. */ this.readCodeByTable(litlen);
 			if (code < 0) {
@@ -477,14 +470,14 @@ export class RawInflateStream {
 	/**
 	 * expand output buffer. (dynamic)
 	 * @param {Object=} opt_param option parameters.
-	 * @return {!(Array|Uint8Array)} output buffer pointer.
+	 * @return {!(Uint8Array)} output buffer pointer.
 	 */
 	expandBuffer = function (opt_param) {
 		let ratio = /** @type {number} expantion ratio. */ (this.input.length / this.ip + 1) | 0;
 		/** @type {number} new output buffer size. */
 		let newSize;
-		var input = this.input;
-		var output = this.output;
+		const input = this.input;
+		const output = this.output;
 		if (opt_param) {
 			if (typeof opt_param.fixRatio === 'number') ratio = opt_param.fixRatio;
 			if (typeof opt_param.addRatio === 'number') ratio += opt_param.addRatio;
@@ -495,28 +488,26 @@ export class RawInflateStream {
 			const maxInflateSize = /** @type {number} max inflate size. */ ((maxHuffCode / 2) * 258) | 0;
 			newSize = maxInflateSize < output.length ? output.length + maxInflateSize : output.length << 1;
 		} else newSize = output.length * ratio;
-		const buffer = /** @type {!(Array|Uint8Array)} store buffer. */ new Uint8Array(newSize); // buffer expantion
+		const buffer = /** @type {!(Uint8Array)} store buffer. */ new Uint8Array(newSize); // buffer expantion
 		buffer.set(output);
 		this.output = buffer;
 		return this.output;
 	};
 	/**
 	 * concat output buffer. (dynamic)
-	 * @return {!(Array|Uint8Array)} output buffer.
+	 * @return {!(Uint8Array)} output buffer.
 	 */
 	concatBuffer() {
-		let op = /** @type {number} */ this.op;
-		const buffer = /** @type {!(Array|Uint8Array)} output buffer. */ this.resize
+		const op = /** @type {number} */ this.op;
+		const buffer = /** @type {!(Uint8Array)} output buffer. */ this.resize
 			? new Uint8Array(this.output.subarray(this.sp, op))
 			: this.output.subarray(this.sp, op);
 		this.sp = op;
 		if (op > RawInflateStream.MaxBackwardLength + this.bufferSize) {
 			this.op = this.sp = RawInflateStream.MaxBackwardLength; // compaction
-			if (USE_TYPEDARRAY) {
-				const tmp = /** @type {Uint8Array} */ (this.output);
-				this.output = new Uint8Array(this.bufferSize + RawInflateStream.MaxBackwardLength);
-				this.output.set(tmp.subarray(op - RawInflateStream.MaxBackwardLength, op));
-			} else this.output = this.output.slice(op - RawInflateStream.MaxBackwardLength);
+			const tmp = /** @type {Uint8Array} */ (this.output);
+			this.output = new Uint8Array(this.bufferSize + RawInflateStream.MaxBackwardLength);
+			this.output.set(tmp.subarray(op - RawInflateStream.MaxBackwardLength, op));
 		}
 		return buffer;
 	}

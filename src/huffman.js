@@ -1,7 +1,7 @@
 export class Huffman {
 	/**
 	 * build huffman table from length list.
-	 * @param {!(Array.<number>|Uint8Array)} lengths length list.
+	 * @param {!(Uint8Array)} lengths length list.
 	 * @return {!Array} huffman table.
 	 */
 	static buildHuffmanTable(lengths) {

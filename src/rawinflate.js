@@ -25,13 +25,13 @@ export class RawInflate {
 	/**
 	 * huffman order
 	 * @const
-	 * @type {!(Array.<number>|Uint8Array)}
+	 * @type {!(Uint8Array)}
 	 */
 	static Order = new Uint16Array([16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15]);
 	/**
 	 * huffman length code table.
 	 * @const
-	 * @type {!(Array.<number>|Uint16Array)}
+	 * @type {!(Uint16Array)}
 	 */
 	static LengthCodeTable = new Uint16Array([
 		0x0003, 0x0004, 0x0005, 0x0006, 0x0007, 0x0008, 0x0009, 0x000a, 0x000b, 0x000d, 0x000f, 0x0011, 0x0013, 0x0017,
@@ -41,7 +41,7 @@ export class RawInflate {
 	/**
 	 * huffman length extra-bits table.
 	 * @const
-	 * @type {!(Array.<number>|Uint8Array)}
+	 * @type {!(Uint8Array)}
 	 */
 	static LengthExtraTable = new Uint8Array([
 		0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0, 0, 0,
@@ -49,7 +49,7 @@ export class RawInflate {
 	/**
 	 * huffman dist code table.
 	 * @const
-	 * @type {!(Array.<number>|Uint16Array)}
+	 * @type {!(Uint16Array)}
 	 */
 	static DistCodeTable = new Uint16Array([
 		0x0001, 0x0002, 0x0003, 0x0004, 0x0005, 0x0007, 0x0009, 0x000d, 0x0011, 0x0019, 0x0021, 0x0031, 0x0041, 0x0061,
@@ -59,7 +59,7 @@ export class RawInflate {
 	/**
 	 * huffman dist extra-bits table.
 	 * @const
-	 * @type {!(Array.<number>|Uint8Array)}
+	 * @type {!(Uint8Array)}
 	 */
 	static DistExtraTable = new Uint8Array([
 		0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13,
@@ -86,7 +86,7 @@ export class RawInflate {
 	})();
 	/**
 	 * @constructor
-	 * @param {!(Uint8Array|Array.<number>)} input input buffer.
+	 * @param {!(Uint8Array)} input input buffer.
 	 * @param {Object} opt_params option parameter.
 	 *
 	 * opt_params は以下のプロパティを指定する事ができます。
@@ -96,19 +96,16 @@ export class RawInflate {
 	 *   - resize: 確保したバッファが実際の大きさより大きかった場合に切り詰める.
 	 */
 	constructor(input, opt_params) {
-		/** @type {!(Array.<number>|Uint8Array)} inflated buffer */
-		this.buffer;
-		this.blocks = /** @type {!Array.<(Array.<number>|Uint8Array)>} */ [];
+		this.buffer = /** @type {!(Uint8Array)} inflated buffer */ void 0;
+		this.blocks = /** @type {!Array.<(Uint8Array)>} */ [];
 		this.bufferSize = /** @type {number} block size. */ RawInflate.ZLIB_RAW_INFLATE_BUFFER_SIZE;
 		this.totalpos = /** @type {!number} total output buffer pointer. */ 0;
 		this.ip = /** @type {!number} input buffer pointer. */ 0;
 		this.bitsbuf = /** @type {!number} bit stream reader buffer. */ 0;
 		this.bitsbuflen = /** @type {!number} bit stream reader buffer size. */ 0;
-		this.input = /** @type {!(Array.<number>|Uint8Array)} input buffer. */ new Uint8Array(input);
-		/** @type {!(Uint8Array|Array.<number>)} output buffer. */
-		this.output;
-		/** @type {!number} output buffer pointer. */
-		this.op;
+		this.input = /** @type {!(Uint8Array)} input buffer. */ new Uint8Array(input);
+		this.output = /** @type {!(Uint8Array)} output buffer. */ void 0;
+		this.op = /** @type {!number} output buffer pointer. */ void 0;
 		this.bfinal = /** @type {boolean} is final block flag. */ false;
 		this.bufferType = /** @type {Zlib.RawInflate.BufferType} buffer management. */ RawInflate.BufferType.ADAPTIVE;
 		this.resize = /** @type {boolean} resize flag for memory size optimization. */ false;
@@ -133,7 +130,7 @@ export class RawInflate {
 	}
 	/**
 	 * decompress.
-	 * @return {!(Uint8Array|Array.<number>)} inflated buffer.
+	 * @return {!(Uint8Array)} inflated buffer.
 	 */
 	decompress() {
 		while (!this.bfinal) this.parseBlock();
@@ -164,7 +161,7 @@ export class RawInflate {
 				this.parseDynamicHuffmanBlock(); // dynamic huffman
 				break;
 			default:
-				throw new Error('unknown BTYPE: ' + hdr); // reserved or other
+				throw new Error(`unknown BTYPE: ${hdr}`); // reserved or other
 		}
 	}
 	/**
@@ -192,7 +189,7 @@ export class RawInflate {
 	}
 	/**
 	 * read huffman code using table
-	 * @param {!(Array.<number>|Uint8Array|Uint16Array)} table huffman code table.
+	 * @param {!(Uint8Array|Uint16Array)} table huffman code table.
 	 * @return {number} huffman code.
 	 */
 	readCodeByTable(table) {
@@ -201,7 +198,7 @@ export class RawInflate {
 		const input = this.input;
 		let ip = this.ip;
 		const inputLength = input.length;
-		/** @type {!(Array.<number>|Uint8Array)} huffman code table */
+		/** @type {!(Uint8Array)} huffman code table */
 		const codeTable = table[0];
 		const maxCodeLength = table[1];
 		while (bitsbuflen < maxCodeLength) {
@@ -211,7 +208,7 @@ export class RawInflate {
 		}
 		const codeWithLength = codeTable[bitsbuf & ((1 << maxCodeLength) - 1)]; //code length & code (16bit, 16bit) // read max length
 		const codeLength = codeWithLength >>> 16; //code bits length
-		if (codeLength > bitsbuflen) throw new Error('invalid code length: ' + codeLength);
+		if (codeLength > bitsbuflen) throw new Error(`invalid code length: ${codeLength}`);
 		this.bitsbuf = bitsbuf >> codeLength;
 		this.bitsbuflen = bitsbuflen - codeLength;
 		this.ip = ip;
@@ -286,7 +283,7 @@ export class RawInflate {
 		const hdist = this.readBits(5) + 1;
 		/** @type {number} number of code lengths. */
 		const hclen = this.readBits(4) + 4;
-		/** @type {!(Uint8Array|Array.<number>)} code lengths. */
+		/** @type {!(Uint8Array)} code lengths. */
 		const codeLengths = new Uint8Array(RawInflate.Order.length);
 		/** @type {number} */
 		let prev;
@@ -333,14 +330,14 @@ export class RawInflate {
 	}
 	/**
 	 * decode huffman code
-	 * @param {!(Array.<number>|Uint16Array)} litlen literal and length code table.
-	 * @param {!(Array.<number>|Uint8Array)} dist distination code table.
+	 * @param {!(Uint16Array)} litlen literal and length code table.
+	 * @param {!(Uint8Array)} dist distination code table.
 	 */
 	decodeHuffmanBlock(litlen, dist) {
-		const output = this.output;
+		let output = this.output;
 		let op = this.op;
 		this.currentLitlenTable = litlen;
-		const olength = output.length - Zlib.RawInflate.MaxCopyLength; //output position limit.
+		const olength = output.length - RawInflate.MaxCopyLength; //output position limit.
 		let code; //huffman code.
 		const lengthCodeTable = RawInflate.LengthCodeTable;
 		const lengthExtraTable = RawInflate.LengthExtraTable;
@@ -360,7 +357,7 @@ export class RawInflate {
 			let codeLength = lengthCodeTable[ti]; //huffman code length.
 			if (lengthExtraTable[ti] > 0) codeLength += this.readBits(lengthExtraTable[ti]);
 			code = this.readCodeByTable(dist); // dist code
-			const codeDist = distCodeTable[code]; //huffman code distination.
+			let codeDist = distCodeTable[code]; //huffman code distination.
 			if (distExtraTable[code] > 0) codeDist += this.readBits(distExtraTable[code]);
 			if (op >= olength) {
 				this.op = op; // lz77 decode
@@ -377,11 +374,11 @@ export class RawInflate {
 	}
 	/**
 	 * decode huffman code (adaptive)
-	 * @param {!(Array.<number>|Uint16Array)} litlen literal and length code table.
-	 * @param {!(Array.<number>|Uint8Array)} dist distination code table.
+	 * @param {!(Uint16Array)} litlen literal and length code table.
+	 * @param {!(Uint8Array)} dist distination code table.
 	 */
 	decodeHuffmanAdaptive(litlen, dist) {
-		const output = this.output;
+		let output = this.output;
 		let op = this.op;
 		this.currentLitlenTable = litlen;
 		let olength = output.length; //output position limit.
@@ -420,9 +417,9 @@ export class RawInflate {
 	/**
 	 * expand output buffer.
 	 * @param {Object=} opt_param option parameters.
-	 * @return {!(Array.<number>|Uint8Array)} output buffer.
+	 * @return {!(Uint8Array)} output buffer.
 	 */
-	expandBufferBlock(opt_param) {
+	expandBufferBlock() {
 		const backward = this.op - RawInflate.MaxBackwardLength; //backward base point
 		const buffer = new Uint8Array(backward); //store buffer.
 		const output = this.output;
@@ -436,10 +433,10 @@ export class RawInflate {
 	/**
 	 * expand output buffer. (adaptive)
 	 * @param {Object=} opt_param option parameters.
-	 * @return {!(Array.<number>|Uint8Array)} output buffer pointer.
+	 * @return {!(Uint8Array)} output buffer pointer.
 	 */
 	expandBufferAdaptive(opt_param) {
-		const ratio = (this.input.length / this.ip + 1) | 0; //expantion ratio.
+		let ratio = (this.input.length / this.ip + 1) | 0; //expantion ratio.
 		let newSize; //new output buffer size.
 		const input = this.input;
 		const output = this.output;
@@ -459,7 +456,7 @@ export class RawInflate {
 	}
 	/**
 	 * concat output buffer.
-	 * @return {!(Array.<number>|Uint8Array)} output buffer.
+	 * @return {!(Uint8Array)} output buffer.
 	 */
 	concatBufferBlock() {
 		let pos = 0; //buffer pointer.
@@ -476,7 +473,7 @@ export class RawInflate {
 	}
 	/**
 	 * concat output buffer. (dynamic)
-	 * @return {!(Array.<number>|Uint8Array)} output buffer.
+	 * @return {!(Uint8Array)} output buffer.
 	 */
 	concatBufferDynamic() {
 		let buffer; //output buffer.

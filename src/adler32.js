@@ -20,7 +20,7 @@ export class Adler32 {
 	static update(adler, array) {
 		let s1 = /** @type {number} */ adler & 0xffff;
 		let s2 = /** @type {number} */ (adler >>> 16) & 0xffff;
-		const len = /** @type {number} array length */ array.length;
+		let len = /** @type {number} array length */ array.length;
 		let i = /** @type {number} array index */ 0;
 		while (len > 0) {
 			/** @type {number} loop length (don't overflow) */

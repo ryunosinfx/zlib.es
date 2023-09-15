@@ -37,22 +37,14 @@ export class Gzip {
 	};
 	/**
 	 * @constructor
-	 * @param {!(Array|Uint8Array)} input input buffer.
+	 * @param {!(Uint8Array)} input input buffer.
 	 * @param {Object=} opt_params option parameters.
 	 */
 	constructor(input, opt_params) {
-		this.input = /** @type {!(Array.<number>|Uint8Array)} input buffer. */ input;
+		this.input = /** @type {!(Uint8Array)} input buffer. */ input;
 		this.ip = /** @type {number} input buffer pointer. */ 0;
-		/** @type {!(Array.<number>|Uint8Array)} output buffer. */
-		this.output;
 		this.op = /** @type {number} output buffer. */ 0;
 		this.flags = /** @type {!Object} flags option flags. */ {};
-		/** @type {!string} filename. */
-		this.filename;
-		/** @type {!string} comment. */
-		this.comment;
-		/** @type {!Object} deflate options. */
-		this.deflateOptions;
 		if (opt_params) {
 			if (opt_params.flags) this.flags = opt_params.flags; // option parameters
 			if (typeof opt_params.filename === 'string') this.filename = opt_params.filename;
@@ -63,13 +55,13 @@ export class Gzip {
 	}
 	/**
 	 * encode gzip members.
-	 * @return {!(Array|Uint8Array)} gzip binary array.
+	 * @return {!(Uint8Array)} gzip binary array.
 	 */
 	compress() {
-		const output = /** @type {!(Array|Uint8Array)} output buffer. */ new Uint8Array(Gzip.DefaultBufferSize);
+		const output = /** @type {!(Uint8Array)} output buffer. */ new Uint8Array(Gzip.DefaultBufferSize);
 		let op = /** @type {number} output buffer pointer. */ 0;
 		const input = this.input;
-		let ip = this.ip;
+		const ip = this.ip;
 		const filename = this.filename;
 		const comment = this.comment;
 		output[op++] = 0x1f; // check signature

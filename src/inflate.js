@@ -4,7 +4,7 @@ import { Zip } from './zip.js';
 export class Inflate {
 	/**
 	 * @constructor
-	 * @param {!(Uint8Array|Array)} input deflated buffer.
+	 * @param {!(Uint8Array)} input deflated buffer.
 	 * @param {Object=} opt_params option parameters.
 	 *
 	 * opt_params は以下のプロパティを指定する事ができます。
@@ -15,7 +15,7 @@ export class Inflate {
 	 *       Zlib.Inflate.BufferType は Zlib.RawInflate.BufferType のエイリアス.
 	 */
 	constructor(input, opt_params) {
-		this.input = /** @type {!(Uint8Array|Array)} */ input;
+		this.input = /** @type {!(Uint8Array)} */ input;
 		this.ip = /** @type {number} */ 0;
 		if (opt_params || !(opt_params = {})) {
 			if (opt_params.index) this.ip = opt_params.index; // option parameters
@@ -30,7 +30,7 @@ export class Inflate {
 			default:
 				throw new Error('unsupported compression method');
 		}
-		if (((cmf << 8) + flg) % 31 !== 0) throw new Error('invalid fcheck flag:' + (((cmf << 8) + flg) % 31)); // fcheck
+		if (((cmf << 8) + flg) % 31 !== 0) throw new Error(`invalid fcheck flag:${((cmf << 8) + flg) % 31}`); // fcheck
 		if (flg & 0x20) throw new Error('fdict flag is not supported'); // fdict (not supported)
 		this.rawinflate = /** @type {Zlib.RawInflate} */ new RawInflate(input, {
 			index: this.ip, // RawInflate
@@ -41,11 +41,11 @@ export class Inflate {
 	}
 	/**
 	 * decompress.
-	 * @return {!(Uint8Array|Array)} inflated buffer.
+	 * @return {!(Uint8Array)} inflated buffer.
 	 */
 	decompress() {
-		const input = /** @type {!(Array|Uint8Array)} input buffer. */ this.input;
-		const buffer = /** @type {!(Uint8Array|Array)} inflated buffer. */ this.rawinflate.decompress();
+		const input = /** @type {!(Uint8Array)} input buffer. */ this.input;
+		const buffer = /** @type {!(Uint8Array)} inflated buffer. */ this.rawinflate.decompress();
 		this.ip = this.rawinflate.ip;
 		if (this.verify) {
 			const adler32 = // verify adler-32

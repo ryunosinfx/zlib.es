@@ -40,9 +40,9 @@ export class BitStream {
 	 * @param {boolean=} reverse 逆順に書き込むならば true.
 	 */
 	writeBits(number, n, reverse) {
-		const buffer = this.buffer;
-		const index = this.index;
-		const bitindex = this.bitindex;
+		let buffer = this.buffer;
+		let index = this.index;
+		let bitindex = this.bitindex;
 		let current = /** @type {number} current octet. */ buffer[index];
 		if (reverse && n > 1)
 			number = n > 8 ? this.rev32_(number) >> (32 - n) : BitStream.ReverseTable[number] >> (8 - n);
@@ -88,7 +88,7 @@ export class BitStream {
 		let index = this.index;
 		if (this.bitindex > 0) {
 			buffer[index] <<= 8 - this.bitindex; // bitindex が 0 の時は余分に index が進んでいる状態
-			buffer[index] = Zlib.BitStream.ReverseTable[buffer[index]];
+			buffer[index] = BitStream.ReverseTable[buffer[index]];
 			index++;
 		}
 		return buffer.subarray(0, index); // array truncation;

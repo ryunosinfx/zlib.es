@@ -14,12 +14,12 @@ export class Deflate {
 	/**
 	 * Zlib Deflate
 	 * @constructor
-	 * @param {!(Array|Uint8Array)} input 符号化する対象の byte array.
+	 * @param {!(Uint8Array)} input 符号化する対象の byte array.
 	 * @param {Object=} opt_params option parameters.
 	 */
 	constructor(input, opt_params) {
-		this.input = /** @type {!(Array|Uint8Array)} */ input;
-		this.output = /** @type {!(Array|Uint8Array)} */ new Uint8Array(Deflate.DefaultBufferSize);
+		this.input = /** @type {!(Uint8Array)} */ input;
+		this.output = /** @type {!(Uint8Array)} */ new Uint8Array(Deflate.DefaultBufferSize);
 		this.compressionType = /** @type {Zlib.Deflate.CompressionType} */ RawDeflate.CompressionType.DYNAMIC;
 		const rawDeflateOption = /** @type {Object} */ {};
 		if (opt_params || !(opt_params = {}))
@@ -30,16 +30,16 @@ export class Deflate {
 	}
 	/**
 	 * 直接圧縮に掛ける.
-	 * @param {!(Array|Uint8Array)} input target buffer.
+	 * @param {!(Uint8Array)} input target buffer.
 	 * @param {Object=} opt_params option parameters.
-	 * @return {!(Array|Uint8Array)} compressed data byte array.
+	 * @return {!(Uint8Array)} compressed data byte array.
 	 */
 	static compress(input, opt_params) {
 		return new Deflate(input, opt_params).compress();
 	}
 	/**
 	 * Deflate Compression.
-	 * @return {!(Array|Uint8Array)} compressed data byte array.
+	 * @return {!(Uint8Array)} compressed data byte array.
 	 */
 	compress() {
 		let cinfo = /** @type {number} */ 0;
@@ -56,7 +56,7 @@ export class Deflate {
 		}
 		const cmf = (cinfo << 4) | cm;
 		output[pos++] = cmf;
-		let fdict = 0; // Flags
+		const fdict = 0; // Flags
 		switch (cm) {
 			case Zlib.CompressionMethod.DEFLATE:
 				switch (this.compressionType) {
