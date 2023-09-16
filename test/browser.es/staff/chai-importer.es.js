@@ -1,3 +1,3 @@
-import 'chai/chai.js';
+import '../../../node_modules/chai/chai.js';
 
 export default globalThis.chai;
