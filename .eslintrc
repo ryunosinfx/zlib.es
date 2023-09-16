@@ -4,7 +4,8 @@
 	"env": {
 		"es6": true,
 		"browser": true,
-		"node": false
+		"node": false,
+		"es2023": true
 	},
 	"rules": {
 		// "prettier/prettier": [1, { "trailingComma": "es6", "singleQuote": true, "semi": true }],
