@@ -99,7 +99,7 @@ export class RawDeflate {
 	 * DEFLATE ブロックの作成
 	 * @return {!(Uint8Array)} 圧縮済み byte array.
 	 */
-	ompress() {
+	compress() {
 		const input = this.input; // compression
 		switch (this.compressionType) {
 			case RawDeflate.CompressionType.NONE:

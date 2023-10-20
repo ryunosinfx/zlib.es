@@ -217,7 +217,7 @@ export class RawInflate {
 	/**
 	 * parse uncompressed block.
 	 */
-	arseUncompressedBlock() {
+	parseUncompressedBlock() {
 		const input = this.input;
 		let ip = this.ip;
 		let output = this.output;
