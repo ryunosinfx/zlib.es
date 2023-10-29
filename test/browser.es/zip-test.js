@@ -1,4 +1,3 @@
-import { describe, before, it } from '../../node_modules/mocha/mocha.js';
 import { Zlib } from '../../src/zlib.es.js';
 import { assertArray, makeRandomSequentialData, stringToByteArray } from './staff/util.js';
 describe('zip', function () {
@@ -13,7 +12,7 @@ describe('zip', function () {
 		// }
 	});
 
-	it('compress (store)', function () {
+	it('compress (store)', function (done) {
 		const td = makeRandomSequentialData(size);
 
 		const testData = {
@@ -41,11 +40,12 @@ describe('zip', function () {
 			files[filename] = unzip.decompress(filename);
 		}
 		for (const key in testData) {
-			assertArray(files[key], testData[key]);
+			assertArray(files[key], testData[key], 'compress (store) key:' + key);
 		}
+		done();
 	});
 
-	it('compress (deflate)', function () {
+	it('compress (deflate)', function (done) {
 		const td = makeRandomSequentialData(size);
 
 		const testData = {
@@ -73,11 +73,12 @@ describe('zip', function () {
 			files[filename] = unzip.decompress(filename);
 		}
 		for (const key in testData) {
-			assertArray(files[key], testData[key]);
+			assertArray(files[key], testData[key], 'compress (deflate) key:' + key);
 		}
+		done();
 	});
 
-	it('compress with password (deflate)', function () {
+	it('compress with password (deflate)', function (done) {
 		const td = makeRandomSequentialData(size);
 
 		const testData = {
@@ -107,11 +108,12 @@ describe('zip', function () {
 			files[filename] = unzip.decompress(filename);
 		}
 		for (const key in testData) {
-			assertArray(files[key], testData[key]);
+			assertArray(files[key], testData[key], 'compress with password (deflate) key:' + key);
 		}
+		done();
 	});
 
-	it('compress with password (each file)', function () {
+	it('compress with password (each file)', function (done) {
 		const td = makeRandomSequentialData(size);
 
 		const testData = {
@@ -122,7 +124,7 @@ describe('zip', function () {
 
 		const zip = new Zlib.Zip();
 		for (const key in testData) {
-			zip.addFile(testData[key], {
+			zip.addFile(testData[key][0], {
 				filename: stringToByteArray(key),
 				compressionMethod: Zlib.Zip.CompressionMethod.DEFLATE,
 				password: testData[key][1],
@@ -142,7 +144,8 @@ describe('zip', function () {
 			});
 		}
 		for (const key in testData) {
-			assertArray(files[key], testData[key]);
+			assertArray(files[key], testData[key][0], 'compress with password (each file) key:' + key);
 		}
+		done();
 	});
 });

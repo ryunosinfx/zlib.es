@@ -1,7 +1,8 @@
 import chai from './staff/chai-importer.es.js';
-import { describe, before, it } from '../../node_modules/mocha/mocha.js';
+// import { describe, before, it } from './staff/mocha-importer.es.js';
 import { Zlib } from '../../src/zlib.es.js';
 import { base64toArray, assertArray } from './staff/util.js';
+// eslint-disable-next-line no-undef
 describe('gunzip', function () {
 	this.timeout(60000);
 
@@ -12,7 +13,7 @@ describe('gunzip', function () {
 		// }
 	});
 
-	it('pre-compressed data', function () {
+	it('pre-compressed data', function (done) {
 		const testData = 'H4sIAAAAAAAAA0tMTEwEAEXlmK0EAAAA';
 		const plain = new Uint8Array(
 			'aaaa'.split('').map(function (c) {
@@ -26,10 +27,11 @@ describe('gunzip', function () {
 		const inflated = inflator.decompress();
 
 		chai.assert(inflated.length === plain.length);
-		assertArray(inflated, plain);
+		assertArray(inflated, plain, 'pre-compressed data');
+		done();
 	});
 
-	it('decompress pre-compressed data with filename', function () {
+	it('decompress pre-compressed data with filename', function (done) {
 		const testData = 'H4sICOzl1k8AA2hvZ2UudHh0AMtIzcnJVyjPL8pJ4QIALTsIrwwAAAA=';
 		const plain = new Uint8Array(
 			'hello world'
@@ -45,7 +47,8 @@ describe('gunzip', function () {
 		const inflated = inflator.decompress();
 
 		chai.assert(inflated.length === plain.length);
-		assertArray(inflated, plain);
+		assertArray(inflated, plain, 'decompress pre-compressed data with filename');
 		chai.assert(inflator.getMembers()[0].getName() === 'hoge.txt');
+		done();
 	});
 });

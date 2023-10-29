@@ -4,7 +4,7 @@ import { MersenneTwister } from '../../../vendor/mt.js/mt.es.js';
 // base64 decoder
 // see http://sourceforge.net/projects/libb64/
 //-----------------------------------------------------------------------------
-export function base64toArray(str) {
+export const base64toArray = function (str) {
 	const table = [
 		62, -1, -1, -1, 63, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, -1, -1, -1, -2, -1, -1, -1, 0, 1, 2, 3, 4, 5, 6, 7,
 		8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, -1, -1, -1, -1, -1, -1, 26, 27, 28, 29,
@@ -51,23 +51,28 @@ export function base64toArray(str) {
 	decoded.length = op;
 
 	return decoded;
-}
+};
 
 //-----------------------------------------------------------------------------
 // array assertion
 //-----------------------------------------------------------------------------
-export function assertArray(expected, actuals) {
-	chai.assert(expected.length === actuals.length);
+export const assertArray = function (expected, actuals, msg = '') {
+	console.log('assertArray ' + msg + ' expected:%o,actuals:%o', expected, actuals);
+	if (expected.length !== actuals.length)
+		console.warn('assertArray expected.length === actuals.length', msg, expected.length, actuals.length);
+	chai.assert.isTrue(expected.length === actuals.length);
 
 	for (let i = 0, il = expected.length; i < il; ++i) {
-		chai.assert(expected[i] === actuals[i]);
+		if (expected[i] !== actuals[i])
+			console.warn('assertArray expected[i] === actuals[i]', msg, i, expected[i], actuals[i]);
+		chai.assert.isTrue(expected[i] === actuals[i]);
 	}
-}
+};
 
 //-----------------------------------------------------------------------------
 // string to bytearray
 //-----------------------------------------------------------------------------
-export function stringToByteArray(str) {
+export const stringToByteArray = function (str) {
 	const array = new Array(str.length);
 
 	for (let i = 0, il = str.length; i < il; ++i) {
@@ -75,30 +80,30 @@ export function stringToByteArray(str) {
 	}
 
 	return array;
-}
+};
 
 //-----------------------------------------------------------------------------
 // make random data
 //-----------------------------------------------------------------------------
-export function makeRandomData(size, typedarray) {
+export const makeRandomData = function (size, typedarray) {
 	const data = new (typedarray ? Uint8Array : Array)(size);
 	const seed = +new Date();
 	const mt = new MersenneTwister(seed);
 
-	console.log('seed:', seed);
+	console.log('makeRandomData seed:', seed);
 
 	// make random data
 	for (let i = 0, il = data.length; i < il; ++i) {
 		data[i] = mt.nextInt(256);
 	}
-
+	console.log('makeRandomData data:', data);
 	return data;
-}
+};
 
 //-----------------------------------------------------------------------------
 // make sequential data
 //-----------------------------------------------------------------------------
-export function makeSequentialData(size, typedarray) {
+export const makeSequentialData = function (size, typedarray) {
 	const data = new (typedarray ? Uint8Array : Array)(size);
 
 	// make sequential data
@@ -107,12 +112,12 @@ export function makeSequentialData(size, typedarray) {
 	}
 
 	return data;
-}
+};
 
 //-----------------------------------------------------------------------------
 // make random sequential data
 //-----------------------------------------------------------------------------
-export function makeRandomSequentialData(size, typedarray, opt_seed) {
+export const makeRandomSequentialData = function (size, typedarray, opt_seed) {
 	const data = new (typedarray ? Uint8Array : Array)(size);
 	const seed = opt_seed || +new Date();
 	const mt = new MersenneTwister(seed);
@@ -132,4 +137,4 @@ export function makeRandomSequentialData(size, typedarray, opt_seed) {
 	}
 
 	return data;
-}
+};

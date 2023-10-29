@@ -1,7 +1,7 @@
 import chai from './staff/chai-importer.es.js';
-import { describe, before, it } from '../../node_modules/mocha/mocha.js';
 import { Zlib } from '../../src/zlib.es.js';
-import { assertArray, base64toArray, decompressionTest } from './staff/util.js';
+import { decompressionTest } from './staff/base.js';
+import { assertArray, base64toArray } from './staff/util.js';
 describe('Zlib.Inflate', function () {
 	const USE_TYPEDARRAY = window.Uint8Array !== void 0;
 	const fixedData =
@@ -36,7 +36,7 @@ describe('Zlib.Inflate', function () {
 		// Zlib = ZlibOriginal;
 	});
 
-	it('pre-deflated data', function () {
+	it('pre-deflated data', function (done) {
 		const size = 123456;
 		const plain = new (USE_TYPEDARRAY ? Uint8Array : Array)(size);
 		const testData = fixedData;
@@ -56,10 +56,11 @@ describe('Zlib.Inflate', function () {
 		const inflated = inflator.decompress();
 
 		chai.assert(inflated.length === size);
-		assertArray(inflated, plain);
+		assertArray(inflated, plain, 'pre-deflated data');
+		done();
 	});
 
-	it('pre-deflated data with inflate bufferSize option', function () {
+	it('pre-deflated data with inflate bufferSize option', function (done) {
 		const size = 123456;
 		const plain = new (USE_TYPEDARRAY ? Uint8Array : Array)(size);
 		const testData = fixedData;
@@ -80,10 +81,11 @@ describe('Zlib.Inflate', function () {
 
 		chai.assert(inflated.length === size);
 		chai.assert(inflated.buffer.byteLength === 123456);
-		assertArray(inflated, plain);
+		assertArray(inflated, plain, 'pre-deflated data with inflate bufferSize option');
+		done();
 	});
 
-	it('pre-deflated data with inflate bufferType option', function () {
+	it('pre-deflated data with inflate bufferType option', function (done) {
 		const size = 123456;
 		const plain = new (USE_TYPEDARRAY ? Uint8Array : Array)(size);
 		const testData = fixedData;
@@ -100,7 +102,7 @@ describe('Zlib.Inflate', function () {
 		chai.assert(decodedData.length === 1202);
 
 		const inflator = new Zlib.Inflate(decodedData, {
-			bufferType: Zlib.Inflate.BufferType.BLOCK,
+			bufferType: Zlib.RawInflate.BufferType.BLOCK,
 			bufferSize: 41152,
 			verify: true,
 		});
@@ -108,10 +110,11 @@ describe('Zlib.Inflate', function () {
 
 		chai.assert(inflated.length === size);
 		chai.assert(inflated.buffer.byteLength === 123456);
-		assertArray(inflated, plain);
+		assertArray(inflated, plain, 'pre-deflated data with inflate bufferType option');
+		done();
 	});
 
-	it('pre-deflated data with inflate resize option', function () {
+	it('pre-deflated data with inflate resize option', function (done) {
 		const size = 123456;
 		const plain = new (USE_TYPEDARRAY ? Uint8Array : Array)(size);
 		const testData = fixedData;
@@ -128,7 +131,7 @@ describe('Zlib.Inflate', function () {
 		chai.assert(decodedData.length === 1202);
 
 		const inflator = new Zlib.Inflate(decodedData, {
-			bufferType: Zlib.Inflate.BufferType.BLOCK,
+			bufferType: Zlib.RawInflate.BufferType.BLOCK,
 			bufferSize: 41153,
 			resize: true,
 		});
@@ -136,10 +139,11 @@ describe('Zlib.Inflate', function () {
 
 		chai.assert(inflated.length === size);
 		chai.assert(inflated.buffer.byteLength === 123456);
-		assertArray(inflated, plain);
+		assertArray(inflated, plain, 'pre-deflated data with inflate resize option');
+		done();
 	});
 
-	it('issue#35 wrong inflate 1', function () {
+	it('issue#35 wrong inflate 1', function (done) {
 		const compressed = base64toArray(
 			'eJx9jq0NQCEMhG8YJMOwAgJdhWYA9kAyAIuQoBmkvNQ80Z+kP/l6uRy8urIysOVoprTaLlOlcXyzvE7qP3jBuo4XCDg/QAyZCQjI'
 		);
@@ -154,9 +158,10 @@ describe('Zlib.Inflate', function () {
 		];
 
 		decompressionTest(compressed, plain);
+		done();
 	});
 
-	it('issue#35 wrong inflate 2', function () {
+	it('issue#35 wrong inflate 2', function (done) {
 		const compressed = base64toArray(
 			'eJxtjD0NgEAMhd8IBlDAigNMsDCxsSIIAyScikvOzAk4A02Tdujf8r2/FPl1Fctk8jufDzSGbGdJ17A7fbAZd6iowMMswM78tLjCy9+417UEYNsIeA=='
 		);
@@ -171,9 +176,10 @@ describe('Zlib.Inflate', function () {
 		];
 
 		decompressionTest(compressed, plain);
+		done();
 	});
 
-	it('issue#35 take a long time and throw exception', function () {
+	it('issue#35 take a long time and throw exception', function (done) {
 		const compressed = base64toArray(
 			'eJx1jb8NQFAQxj+J2MAASo1EJGIEM1hAhV6iVEg0GgvozGEHG+jscDm5Q/L+FL/3+y73vjfAfVbciDXkqFR9lKretz3XWHbxxl44RSKb+9PWmFw/7+U+MvNlgtTa2D0s3jwyAsYZMgl65Qwx'
 		);
@@ -189,5 +195,6 @@ describe('Zlib.Inflate', function () {
 		];
 
 		decompressionTest(compressed, plain);
+		done();
 	});
 });

@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Mocha Tests</title>
+  <link rel="stylesheet" href="node_modules/mocha/mocha.css">
+</head>
+
+<body>
+  <div id="mocha"></div>
+  <script type="module" src="./test/browser.es/mocha.run.es.js"></script>
+  <script type="module" src="./test/browser.es/code-path-test.js"></script>
+  <script type="module" src="./test/browser.es/gunzip-test.js"></script>
+  <script type="module" src="./test/browser.es/gzip-test.js"></script>
+  <script type="module" src="./test/browser.es/inflate-test.js"></script>
+  <script type="module" src="./test/browser.es/raw-inflate-test.js"></script>
+  <script type="module" src="./test/browser.es/unzip-test.js"></script>
+  <script type="module" src="./test/browser.es/zip-test.js"></script>
+  <script type="module" src="./test/browser.es/zlib-test.js"></script>
+  <script type="module">
+    mocha.checkLeaks();
+    mocha.run();
+  </script>
+</body>
+
+</html>

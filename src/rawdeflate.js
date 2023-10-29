@@ -228,7 +228,7 @@ export class RawDeflate {
 					default:
 						throw `invalid code: ${code}`;
 				}
-				stream.writeBits(code, bitlen, true);
+				stream.writeBits(codes[i], bitlen, true);
 			}
 		}
 		this.dynamicHuffman(data, [litLenCodes, litLenLengths], [distCodes, distLengths], stream);
@@ -475,8 +475,8 @@ export class RawDeflate {
 		const nSymbols = /** @type {number} */ freqs.length;
 		const heap = /** @type {Zlib.Heap} */ new Heap(2 * RawDeflate.HUFMAX);
 		const length = /** @type {!(Uint8Array)} */ new Uint8Array(nSymbols);
-		const heapHalfLen = heap.length / 2;
 		for (let i = 0; i < nSymbols; ++i) if (freqs[i] > 0) heap.push(i, freqs[i]); // ヒープの構築
+		const heapHalfLen = heap.length / 2;
 		const nodes = new Array(heapHalfLen);
 		const values = new Uint32Array(heapHalfLen);
 		if (nodes.length === 1) {

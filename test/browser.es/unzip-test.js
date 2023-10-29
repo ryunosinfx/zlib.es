@@ -1,6 +1,7 @@
-import { describe, before, it } from '../../node_modules/mocha/mocha.js';
+// import { describe, before, it } from './staff/mocha-importer.es.js';
 import { Zlib } from '../../src/zlib.es.js';
 import { assertArray, stringToByteArray, base64toArray } from './staff/util.js';
+import * as z from '../../../bin/zlib.pretty.dev.js';
 describe('unzip', function () {
 	this.timeout(60000);
 
@@ -8,7 +9,8 @@ describe('unzip', function () {
 		// Zlib = ZlibUnzip;
 	});
 
-	it('decompression files', function () {
+	it('decompression files', function (done) {
+		const Z = window.Zlib;
 		const testData =
 			'UEsDBAoAAAAAALZDSEKdh+K5BQAAAAUAAAAIABwAaG9nZS50eHRVVAkAA+g4FFHoOBR' +
 			'RdXgLAAEE9gEAAAQUAAAAaG9nZQpQSwMECgAAAAAAukNIQgNLGl0FAAAABQAAAAgAHA' +
@@ -24,19 +26,30 @@ describe('unzip', function () {
 		const unzip = new Zlib.Unzip(decodedData, {
 			verify: true,
 		});
+		const unzip2 = new Z.Unzip(decodedData, {
+			verify: true,
+		});
 		const files = {};
+		console.log('decompression files A1 unzip', unzip, unzip2);
 		const filenames = unzip.getFilenames();
+		const filenames2 = unzip2.getFilenames();
+		console.log('decompression files A2 filenames', filenames, filenames2);
 
 		for (let i = 0, il = filenames.length; i < il; ++i) {
+			console.log('decompression files A3 i', i);
+			files[filenames[i] + 'OLD'] = unzip2.decompress(filenames[i]);
 			files[filenames[i]] = unzip.decompress(filenames[i]);
+			console.log('decompression files A4 filenames[i]', filenames[i]);
 		}
+		console.log('decompression files A5 files', files);
 
-		assertArray(files['hoge.txt'], new Uint8Array(stringToByteArray('hoge\x0a')));
-		assertArray(files['fuga.txt'], new Uint8Array(stringToByteArray('fuga\x0a')));
-		assertArray(files['piyo.txt'], new Uint8Array(stringToByteArray('piyo\x0a')));
+		assertArray(files['hoge.txt'], new Uint8Array(stringToByteArray('hoge\x0a')), 'decompression files hoge');
+		assertArray(files['fuga.txt'], new Uint8Array(stringToByteArray('fuga\x0a')), 'decompression files fuga');
+		assertArray(files['piyo.txt'], new Uint8Array(stringToByteArray('piyo\x0a')), 'decompression files piyo');
+		done();
 	});
 
-	it('decompression files (encrypted)', function () {
+	it('decompression files (encrypted)', function (done) {
 		const testData =
 			'UEsDBAoACwAAALZDSEKdh+K5EQAAAAUAAAAIABwAaG9nZS50eHRVVAkAA+g4FFFLkE' +
 			'FRdXgLAAEE9gEAAAQUAAAAmLCXJJ8ekVoXli8htr9XeT1QSwcInYfiuREAAAAFAAAA' +
@@ -64,8 +77,21 @@ describe('unzip', function () {
 			files[filenames[i]] = unzip.decompress(filenames[i]);
 		}
 
-		assertArray(files['hoge.txt'], new Uint8Array(stringToByteArray('hoge\x0a')));
-		assertArray(files['fuga.txt'], new Uint8Array(stringToByteArray('fuga\x0a')));
-		assertArray(files['piyo.txt'], new Uint8Array(stringToByteArray('piyo\x0a')));
+		assertArray(
+			files['hoge.txt'],
+			new Uint8Array(stringToByteArray('hoge\x0a')),
+			'decompression files (encrypted) hoge'
+		);
+		assertArray(
+			files['fuga.txt'],
+			new Uint8Array(stringToByteArray('fuga\x0a')),
+			'decompression files (encrypted) fuga'
+		);
+		assertArray(
+			files['piyo.txt'],
+			new Uint8Array(stringToByteArray('piyo\x0a')),
+			'decompression files (encrypted) piyo'
+		);
+		done();
 	});
 });
