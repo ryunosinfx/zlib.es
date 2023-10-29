@@ -31,14 +31,10 @@ class FileHeader {
 		this.parse();
 	}
 	parse() {
-		const input = this.input;
+		const input = this.input,
+			FS = Unzip.FileHeaderSignature;
 		let ip = this.offset;
-		if (
-			input[ip++] !== Unzip.FileHeaderSignature[0] ||
-			input[ip++] !== Unzip.FileHeaderSignature[1] ||
-			input[ip++] !== Unzip.FileHeaderSignature[2] ||
-			input[ip++] !== Unzip.FileHeaderSignature[3]
-		)
+		if (input[ip++] !== FS[0] || input[ip++] !== FS[1] || input[ip++] !== FS[2] || input[ip++] !== FS[3])
 			throw new Error('invalid file header signature'); // central file header signature
 		this.version = input[ip++]; // version made by
 		this.os = input[ip++];
@@ -82,10 +78,10 @@ class Adler32 {
 	 * @return {number} Adler32 ハッシュ値.
 	 */
 	static update(adler, array) {
-		let s1 = /** @type {number} */ adler & 0xffff;
-		let s2 = /** @type {number} */ (adler >>> 16) & 0xffff;
-		let len = /** @type {number} array length */ array.length;
-		let i = /** @type {number} array index */ 0;
+		let s1 = /** @type {number} */ adler & 0xffff,
+			s2 = /** @type {number} */ (adler >>> 16) & 0xffff,
+			len = /** @type {number} array length */ array.length,
+			i = /** @type {number} array index */ 0;
 		while (len > 0) {
 			/** @type {number} loop length (don't overflow) */
 			let tlen = len > Adler32.OptimizationParameter ? Adler32.OptimizationParameter : len;
@@ -138,8 +134,8 @@ class BitStream {
 	 * @return {!(Uint8Array)} new buffer.
 	 */
 	expandBuffer() {
-		const oldbuf = /** @type {!(Uint8Array)} old buffer. */ this.buffer;
-		const buffer = /** @type {!(Uint8Array)} new buffer. */ new Uint8Array(oldbuf.length << 1);
+		const oldbuf = /** @type {!(Uint8Array)} old buffer. */ this.buffer,
+			buffer = /** @type {!(Uint8Array)} new buffer. */ new Uint8Array(oldbuf.length << 1);
 		buffer.set(oldbuf); // copy buffer
 		return (this.buffer = buffer);
 	}
@@ -150,12 +146,12 @@ class BitStream {
 	 * @param {boolean=} reverse 逆順に書き込むならば true.
 	 */
 	writeBits(number, n, reverse) {
-		let buffer = this.buffer;
-		let index = this.index;
-		let bitindex = this.bitindex;
-		let current = /** @type {number} current octet. */ buffer[index];
+		let buffer = this.buffer,
+			index = this.index,
+			bitindex = this.bitindex,
+			current = /** @type {number} current octet. */ buffer[index];
 		if (reverse && n > 1)
-			number = n > 8 ? this.rev32_(number) >> (32 - n) : BitStream.ReverseTable[number] >> (8 - n);
+			number = n > 8 ? BitStream.rev32_(number) >> (32 - n) : BitStream.ReverseTable[number] >> (8 - n);
 		if (n + bitindex < 8) {
 			current = (current << n) | number; // Byte 境界を超えないとき
 			bitindex += n;
@@ -181,12 +177,10 @@ class BitStream {
 	 * @return {number} reversed 32-bit integer.
 	 * @private
 	 */
-	rev32_(n) {
+	static rev32_(n) {
+		const RT = BitStream.ReverseTable;
 		return (
-			(BitStream.ReverseTable[n & 0xff] << 24) |
-			(BitStream.ReverseTable[(n >>> 8) & 0xff] << 16) |
-			(BitStream.ReverseTable[(n >>> 16) & 0xff] << 8) |
-			BitStream.ReverseTable[(n >>> 24) & 0xff]
+			(RT[n & 0xff] << 24) | (RT[(n >>> 8) & 0xff] << 16) | (RT[(n >>> 16) & 0xff] << 8) | RT[(n >>> 24) & 0xff]
 		);
 	}
 	/**
@@ -204,17 +198,17 @@ class BitStream {
 		return buffer.subarray(0, index); // array truncation;
 	}
 	static buildReverseTable() {
-		const table = /** @type {!(Uint8Array)} reverse table. */ new Uint8Array(256);
-		const func = (n) => {
-			let r = n,
-				s = 7;
-			for (n >>>= 1; n; n >>>= 1) {
-				r <<= 1;
-				r |= n & 1;
-				--s;
-			}
-			return ((r << s) & 0xff) >>> 0;
-		};
+		const table = /** @type {!(Uint8Array)} reverse table. */ new Uint8Array(256),
+			func = (n) => {
+				let r = n,
+					s = 7;
+				for (n >>>= 1; n; n >>>= 1) {
+					r <<= 1;
+					r |= n & 1;
+					--s;
+				}
+				return ((r << s) & 0xff) >>> 0;
+			};
 		for (let i = 0; i < 256; ++i) table[i] = func(i); // generate
 		return table;
 	}
@@ -248,9 +242,9 @@ class CRC32 {
 	 * @return {number} CRC32.
 	 */
 	static update(data, crc, pos, length) {
-		const table = CRC32.Table;
+		const table = CRC32.Table,
+			il = typeof length === 'number' ? length : data.length;
 		let i = typeof pos === 'number' ? pos : (pos = 0);
-		const il = typeof length === 'number' ? length : data.length;
 		crc ^= 0xffffffff;
 		for (i = il & 7; i--; ++pos) crc = (crc >>> 8) ^ table[(crc ^ data[pos]) & 0xff]; // loop unrolling for performance
 		for (i = il >> 3; i--; pos += 8) {
@@ -343,17 +337,13 @@ class Heap {
 	 * @return {number} 親ノードの index.
 	 *
 	 */
-	getParent(index) {
-		return (((index - 2) / 4) | 0) * 2;
-	}
+	static getParent = (index) => (((index - 2) / 4) | 0) * 2;
 	/**
 	 * 子ノードの index 取得
 	 * @param {number} index 親ノードの index.
 	 * @return {number} 子ノードの index.
 	 */
-	getChild(index) {
-		return 2 * index + 2;
-	}
+	static getChild = (index) => 2 * index + 2;
 	/**
 	 * Heap に値を追加する
 	 * @param {number} index キー index.
@@ -366,7 +356,7 @@ class Heap {
 		heap[this.length++] = value;
 		heap[this.length++] = index;
 		while (current > 0) {
-			const parent = this.getParent(current); // 親ノードと比較して親の方が小さければ入れ替える
+			const parent = Heap.getParent(current); // 親ノードと比較して親の方が小さければ入れ替える
 			if (heap[current] > heap[parent]) {
 				const swap1 = heap[current];
 				heap[current] = heap[parent];
@@ -385,15 +375,15 @@ class Heap {
 	 *     value: 値, length: ヒープ長} の Object.
 	 */
 	pop() {
-		const heap = this.buffer;
-		const value = heap[0];
-		const index = heap[1];
+		const heap = this.buffer,
+			value = heap[0],
+			index = heap[1];
 		this.length -= 2; // 後ろから値を取る
 		heap[0] = heap[this.length];
 		heap[1] = heap[this.length + 1];
 		let parent = 0; // ルートノードから下がっていく
 		while (heap) {
-			let current = this.getChild(parent);
+			let current = Heap.getChild(parent);
 			if (current >= this.length) break; // 範囲チェック
 			if (current + 2 < this.length && heap[current + 2] > heap[current]) current += 2; // 隣のノードと比較して、隣の方が値が大きければ隣を現在ノードとして選択
 			if (heap[current] > heap[parent]) {
@@ -417,14 +407,14 @@ class Huffman {
 	 */
 	static buildHuffmanTable(lengths) {
 		const listSize = /** @type {number} length list size. */ lengths.length;
-		let maxCodeLength = /** @type {number} max code length for table size. */ 0;
-		let minCodeLength = /** @type {number} min code length for table size. */ Number.POSITIVE_INFINITY;
+		let maxCodeLength = /** @type {number} max code length for table size. */ 0,
+			minCodeLength = /** @type {number} min code length for table size. */ Number.POSITIVE_INFINITY;
 		for (const length of lengths) {
 			if (length > maxCodeLength) maxCodeLength = length; // Math.max は遅いので最長の値は for-loop で取得する
 			if (length < minCodeLength) minCodeLength = length;
 		}
-		const size = 1 << maxCodeLength; //table size.
-		const table = new Uint32Array(size); //huffman code table.
+		const size = 1 << maxCodeLength, //table size.
+			table = new Uint32Array(size); //huffman code table.
 		// ビット長の短い順からハフマン符号を割り当てる
 		for (let bitLength = 1, code = 0, skip = 2; bitLength <= maxCodeLength; ) {
 			for (let i = 0; i < listSize; ++i)
@@ -597,17 +587,17 @@ class RawDeflate {
 	 * @return {!(Uint8Array)} 非圧縮ブロック byte array.
 	 */
 	makeNocompressBlock(blockArray, isFinalBlock) {
-		let op = this.op;
-		let byteLength = this.output.buffer.byteLength;
+		let op = this.op,
+			byteLength = this.output.buffer.byteLength;
 		const terget = op + blockArray.length + 5;
 		while (byteLength <= terget) byteLength = byteLength << 1; // expand buffer
-		const output = new Uint8Array(byteLength);
+		const output = new Uint8Array(byteLength),
+			bfinal = isFinalBlock ? 1 : 0, // header
+			btype = RawDeflate.CompressionType.NONE,
+			len = blockArray.length, // length
+			nlen = (~len + 0x10000) & 0xffff;
 		output.set(this.output);
-		const bfinal = isFinalBlock ? 1 : 0; // header
-		const btype = RawDeflate.CompressionType.NONE;
 		output[op++] = bfinal | (btype << 1);
-		const len = blockArray.length; // length
-		const nlen = (~len + 0x10000) & 0xffff;
 		output[op++] = len & 0xff;
 		output[op++] = (len >>> 8) & 0xff;
 		output[op++] = nlen & 0xff;
@@ -626,13 +616,13 @@ class RawDeflate {
 	 * @return {!(Uint8Array)} 固定ハフマン符号化ブロック byte array.
 	 */
 	makeFixedHuffmanBlock(blockArray, isFinalBlock) {
-		const stream = new BitStream(new Uint8Array(this.output.buffer), this.op);
-		const bfinal = isFinalBlock ? 1 : 0; // header
-		const btype = RawDeflate.CompressionType.FIXED;
+		const stream = new BitStream(new Uint8Array(this.output.buffer), this.op),
+			bfinal = isFinalBlock ? 1 : 0, // header
+			btype = RawDeflate.CompressionType.FIXED;
 		stream.writeBits(bfinal, 1, true);
 		stream.writeBits(btype, 2, true);
 		const data = this.lz77(blockArray);
-		this.fixedHuffman(data, stream);
+		RawDeflate.fixedHuffman(data, stream);
 		return stream.finish();
 	}
 	/**
@@ -642,34 +632,34 @@ class RawDeflate {
 	 * @return {!(Uint8Array)} 動的ハフマン符号ブロック byte array.
 	 */
 	makeDynamicHuffmanBlock(blockArray, isFinalBlock) {
-		const stream = new BitStream(new Uint8Array(this.output.buffer), this.op);
-		let hlit = /** @type {number} */ 0;
-		let hdist = /** @type {number} */ 0;
-		let hclen = /** @type {number} */ 0;
-		const hclenOrder = /** @const @type {Array.<number>} */ [
-			16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15,
-		];
-		const bfinal = isFinalBlock ? 1 : 0; // header
-		const transLengths = /** @type {Array} */ new Array(19);
-		const btype = RawDeflate.CompressionType.DYNAMIC;
+		let hlit = /** @type {number} */ 0,
+			hdist = /** @type {number} */ 0,
+			hclen = /** @type {number} */ 0;
+		const stream = new BitStream(new Uint8Array(this.output.buffer), this.op),
+			hclenOrder = /** @const @type {Array.<number>} */ [
+				16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15,
+			],
+			bfinal = isFinalBlock ? 1 : 0, // header
+			transLengths = /** @type {Array} */ new Array(19),
+			btype = RawDeflate.CompressionType.DYNAMIC;
 		stream.writeBits(bfinal, 1, true);
 		stream.writeBits(btype, 2, true);
-		const data = this.lz77(blockArray);
-		const litLenLengths = this.getLengths_(this.freqsLitLen, 15); // リテラル・長さ, 距離のハフマン符号と符号長の算出
-		const litLenCodes = this.getCodesFromLengths_(litLenLengths);
-		const distLengths = this.getLengths_(this.freqsDist, 7);
-		const distCodes = this.getCodesFromLengths_(distLengths);
+		const data = this.lz77(blockArray),
+			litLenLengths = RawDeflate.getLengths_(this.freqsLitLen, 15), // リテラル・長さ, 距離のハフマン符号と符号長の算出
+			litLenCodes = RawDeflate.getCodesFromLengths_(litLenLengths),
+			distLengths = RawDeflate.getLengths_(this.freqsDist, 7),
+			distCodes = RawDeflate.getCodesFromLengths_(distLengths);
 		for (hlit = 286; hlit > 257 && litLenLengths[hlit - 1] === 0; ) hlit--; // HLIT の決定
 		for (hdist = 30; hdist > 1 && distLengths[hdist - 1] === 0; ) hdist--; // HDIST の決定
 		/** @type {{
 		 *   codes: !(Uint32Array),
 		 *   freqs: !(Uint8Array)
 		 * }} */
-		const treeSymbols = this.getTreeSymbols_(hlit, litLenLengths, hdist, distLengths); // HCLEN
-		const treeLengths = this.getLengths_(treeSymbols.freqs, 7);
+		const treeSymbols = RawDeflate.getTreeSymbols_(hlit, litLenLengths, hdist, distLengths), // HCLEN
+			treeLengths = RawDeflate.getLengths_(treeSymbols.freqs, 7);
 		for (let i = 0; i < 19; i++) transLengths[i] = treeLengths[hclenOrder[i]];
 		for (hclen = 19; hclen > 4 && transLengths[hclen - 1] === 0; ) hclen--;
-		const treeCodes = this.getCodesFromLengths_(treeLengths);
+		const treeCodes = RawDeflate.getCodesFromLengths_(treeLengths);
 		stream.writeBits(hlit - 257, 5, true); // 出力
 		stream.writeBits(hdist - 1, 5, true);
 		stream.writeBits(hclen - 4, 4, true);
@@ -697,7 +687,7 @@ class RawDeflate {
 				stream.writeBits(codes[i], bitlen, true);
 			}
 		}
-		this.dynamicHuffman(data, [litLenCodes, litLenLengths], [distCodes, distLengths], stream);
+		RawDeflate.dynamicHuffman(data, [litLenCodes, litLenLengths], [distCodes, distLengths], stream);
 		return stream.finish();
 	}
 	/**
@@ -706,11 +696,11 @@ class RawDeflate {
 	 * @param {!BitStream} stream 書き込み用ビットストリーム.
 	 * @return {!BitStream} ハフマン符号化済みビットストリームオブジェクト.
 	 */
-	dynamicHuffman(dataArray, litLen, dist, stream) {
-		const litLenCodes = litLen[0];
-		const litLenLengths = litLen[1];
-		const distCodes = dist[0];
-		const distLengths = dist[1];
+	static dynamicHuffman(dataArray, litLen, dist, stream) {
+		const litLenCodes = litLen[0],
+			litLenLengths = litLen[1],
+			distCodes = dist[0],
+			distLengths = dist[1];
 		for (let i = 0, il = dataArray.length; i < il; ++i) {
 			const literal = dataArray[i]; // 符号を BitStream に書き込んでいく
 			stream.writeBits(litLenCodes[literal], litLenLengths[literal], true); // literal or length
@@ -729,7 +719,7 @@ class RawDeflate {
 	 * @param {!BitStream} stream 書き込み用ビットストリーム.
 	 * @return {!BitStream} ハフマン符号化済みビットストリームオブジェクト.
 	 */
-	fixedHuffman(dataArray, stream) {
+	static fixedHuffman(dataArray, stream) {
 		for (let i = 0, il = dataArray.length; i < il; i++) {
 			const literal = dataArray[i]; // 符号を BitStream に書き込んでいく
 			BitStream.prototype.writeBits.apply(stream, RawDeflate.FixedHuffmanTable[literal]); // 符号の書き込み
@@ -747,19 +737,19 @@ class RawDeflate {
 	 * @return {!(Uint16Array)} LZ77 符号化した配列.
 	 */
 	lz77(dataArray) {
-		const table = /** @type {Object.<number, Array.<number>>} chained-hash-table */ {};
-		const windowSize = /** @const @type {number} */ RawDeflate.WindowSize;
+		const table = /** @type {Object.<number, Array.<number>>} chained-hash-table */ {},
+			windowSize = /** @const @type {number} */ RawDeflate.WindowSize,
+			lz77buf = /** @type {!(Uint16Array)} lz77 buffer */ new Uint16Array(dataArray.length * 2),
+			/** @type {!(Uint32Array)} */
+			freqsLitLen = new Uint32Array(286),
+			/** @type {!(Uint32Array)} */
+			freqsDist = new Uint32Array(30),
+			/** @type {number} */
+			lazy = this.lazy;
 		/** @type {Lz77Match} previous longest match */
-		let prevMatch;
-		const lz77buf = /** @type {!(Uint16Array)} lz77 buffer */ new Uint16Array(dataArray.length * 2);
-		let pos = /** @type {number} lz77 output buffer pointer */ 0;
-		let skipLength = /** @type {number} lz77 skip length */ 0;
-		/** @type {!(Uint32Array)} */
-		const freqsLitLen = new Uint32Array(286);
-		/** @type {!(Uint32Array)} */
-		const freqsDist = new Uint32Array(30);
-		/** @type {number} */
-		const lazy = this.lazy;
+		let prevMatch,
+			pos = /** @type {number} lz77 output buffer pointer */ 0,
+			skipLength = /** @type {number} lz77 skip length */ 0;
 		freqsLitLen[256] = 1; // EOB の最低出現回数は 1
 		/**
 		 * マッチデータの書き込み
@@ -769,7 +759,7 @@ class RawDeflate {
 		 */
 		function writeMatch(match, offset) {
 			/** @type {Array.<number>} */
-			const lz77Array = match.toLz77Array();
+			const lz77Array = Lz77Match.toLz77Array(match.length, match.backwardDistance);
 			for (let i = 0, il = lz77Array.length; i < il; ++i) lz77buf[pos++] = lz77Array[i];
 			freqsLitLen[lz77Array[0]]++;
 			freqsDist[lz77Array[3]]++;
@@ -789,9 +779,7 @@ class RawDeflate {
 				matchList.push(position); // skip
 				continue;
 			}
-			while (matchList.length > 0 && position - matchList[0] > windowSize) {
-				matchList.shift(); // マッチテーブルの更新 (最大戻り距離を超えているものを削除する)
-			}
+			while (matchList.length > 0 && position - matchList[0] > windowSize) matchList.shift(); // マッチテーブルの更新 (最大戻り距離を超えているものを削除する)
 			if (position + RawDeflate.Lz77MinLength >= length) {
 				if (prevMatch) writeMatch(prevMatch, -1); // データ末尾でマッチしようがない場合はそのまま流しこむ
 				for (let i = 0, il = length - position; i < il; ++i) {
@@ -802,7 +790,7 @@ class RawDeflate {
 				break;
 			}
 			if (matchList.length > 0) {
-				const longestMatch = this.searchLongestMatch_(dataArray, position, matchList); // マッチ候補から最長のものを探す
+				const longestMatch = RawDeflate.searchLongestMatch_(dataArray, position, matchList); // マッチ候補から最長のものを探す
 				if (prevMatch) {
 					if (prevMatch.length < longestMatch.length) {
 						const tmp = dataArray[position - 1]; // 現在のマッチの方が前回のマッチよりも長い// write previous literal
@@ -834,7 +822,7 @@ class RawDeflate {
 	 * @return {!Lz77Match} 最長かつ最短距離のマッチオブジェクト.
 	 * @private
 	 */
-	searchLongestMatch_(data, position, matchList) {
+	static searchLongestMatch_(data, position, matchList) {
 		let currentMatch,
 			matchMax = 0;
 		const dl = data.length;
@@ -872,15 +860,15 @@ class RawDeflate {
 	 *   freqs: !(Uint8Array)
 	 * }} Tree-Transmit Symbols.
 	 */
-	getTreeSymbols_(hlit, litlenLengths, hdist, distLengths) {
-		const srcLen = hlit + hdist;
-		const src = new Uint32Array(srcLen),
+	static getTreeSymbols_(hlit, litlenLengths, hdist, distLengths) {
+		const srcLen = hlit + hdist,
+			src = new Uint32Array(srcLen),
 			result = new Uint32Array(286 + 30),
 			freqs = new Uint8Array(19);
-		let j = 0;
+		let j = 0,
+			nResult = 0; // 符号化
 		for (let i = 0; i < hlit; i++) src[j++] = litlenLengths[i];
 		for (let i = 0; i < hdist; i++) src[j++] = distLengths[i];
-		let nResult = 0; // 符号化
 		for (let i = 0; i < srcLen; i += j) {
 			const srcI = src[i];
 			for (j = 1; i + j < srcLen && src[i + j] === srcI; ) ++j; // Run Length Encoding
@@ -938,14 +926,14 @@ class RawDeflate {
 	 * @return {!(Uint8Array)} 符号長配列.
 	 * @private
 	 */
-	getLengths_(freqs, limit) {
-		const nSymbols = /** @type {number} */ freqs.length;
-		const heap = /** @type {Heap} */ new Heap(2 * RawDeflate.HUFMAX);
-		const length = /** @type {!(Uint8Array)} */ new Uint8Array(nSymbols);
+	static getLengths_(freqs, limit) {
+		const nSymbols = /** @type {number} */ freqs.length,
+			heap = /** @type {Heap} */ new Heap(2 * RawDeflate.HUFMAX),
+			length = /** @type {!(Uint8Array)} */ new Uint8Array(nSymbols);
 		for (let i = 0; i < nSymbols; ++i) if (freqs[i] > 0) heap.push(i, freqs[i]); // ヒープの構築
-		const heapHalfLen = heap.length / 2;
-		const nodes = new Array(heapHalfLen);
-		const values = new Uint32Array(heapHalfLen);
+		const heapHalfLen = heap.length / 2,
+			nodes = new Array(heapHalfLen),
+			values = new Uint32Array(heapHalfLen);
 		if (nodes.length === 1) {
 			length[heap.pop().index] = 1; // 非 0 の要素が一つだけだった場合は、そのシンボルに符号長 1 を割り当てて終了
 			return length;
@@ -954,7 +942,7 @@ class RawDeflate {
 			nodes[i] = heap.pop(); // Reverse Package Merge Algorithm による Canonical Huffman Code の符号長決定
 			values[i] = nodes[i].value;
 		}
-		const codeLength = this.reversePackageMerge_(values, values.length, limit);
+		const codeLength = RawDeflate.reversePackageMerge_(values, values.length, limit);
 		for (let i = 0, il = nodes.length; i < il; ++i) length[nodes[i].index] = codeLength[i];
 		return length;
 	}
@@ -976,16 +964,16 @@ class RawDeflate {
 	 * @param {number} limit code length limit.
 	 * @return {!(Uint8Array)} code lengths.
 	 */
-	reversePackageMerge_(freqs, symbols, limit) {
-		const limitM1 = limit - 1;
-		const minimumCost = /** @type {!(Uint16Array)} */ new Uint16Array(limit);
-		const flag = /** @type {!(Uint8Array)} */ new Uint8Array(limit);
-		const codeLength = /** @type {!(Uint8Array)} */ new Uint8Array(symbols);
-		const value = /** @type {Array} */ new Array(limit);
-		const type = /** @type {Array} */ new Array(limit);
-		const currentPosition = /** @type {Array.<number>} */ new Array(limit);
+	static reversePackageMerge_(freqs, symbols, limit) {
+		const limitM1 = limit - 1,
+			minimumCost = /** @type {!(Uint16Array)} */ new Uint16Array(limit),
+			flag = /** @type {!(Uint8Array)} */ new Uint8Array(limit),
+			codeLength = /** @type {!(Uint8Array)} */ new Uint8Array(symbols),
+			value = /** @type {Array} */ new Array(limit),
+			type = /** @type {Array} */ new Array(limit),
+			currentPosition = /** @type {Array.<number>} */ new Array(limit),
+			half = /** @type {number} */ 1 << limitM1;
 		let excess = /** @type {number} */ (1 << limit) - symbols;
-		const half = /** @type {number} */ 1 << limitM1;
 		minimumCost[limitM1] = symbols;
 		for (let j = 0; j < limit; ++j) {
 			if (excess < half) flag[j] = 0;
@@ -1016,12 +1004,12 @@ class RawDeflate {
 			++currentPosition[limitM1];
 		}
 		for (let j = limit - 2; j >= 0; --j) {
-			let i = 0;
-			let next = currentPosition[j + 1];
-			const valueJ0 = value[j];
-			const valueJ1 = value[j + 1];
-			const typeJ = type[j];
-			const minimumCostJ = minimumCost[j];
+			let i = 0,
+				next = currentPosition[j + 1];
+			const valueJ0 = value[j],
+				valueJ1 = value[j + 1],
+				typeJ = type[j],
+				minimumCostJ = minimumCost[j];
 			for (let t = 0; t < minimumCostJ; t++) {
 				const weight = valueJ1[next] + valueJ1[next + 1];
 				if (weight > freqs[i]) {
@@ -1046,9 +1034,9 @@ class RawDeflate {
 	 * @return {!(Uint16Array)} ハフマン符号配列.
 	 * @private
 	 */
-	getCodesFromLengths_(lengths) {
-		const il = lengths.length;
-		const codes = new Uint16Array(il),
+	static getCodesFromLengths_(lengths) {
+		const il = lengths.length,
+			codes = new Uint16Array(il),
 			count = [],
 			startCode = [];
 		let code = 0;
@@ -1171,7 +1159,7 @@ class Lz77Match {
 	 * @return {!Array.<number>} コード、拡張ビット、拡張ビット長の配列.
 	 * @private
 	 */
-	getDistanceCode_(dist) {
+	static getDistanceCode_(dist) {
 		switch (true) {
 			case dist === 1:
 				return [0, dist - 1, 0];
@@ -1243,14 +1231,14 @@ class Lz77Match {
 	 * [ CODE, EXTRA-BIT-LEN, EXTRA, CODE, EXTRA-BIT-LEN, EXTRA ]
 	 * @return {!Array.<number>} LZ77 符号化 byte array.
 	 */
-	toLz77Array() {
-		const codeArray = [];
+	static toLz77Array(length, backwardDistance) {
 		let pos = 0;
-		const code1 = Lz77Match.LengthCodeTable[this.length]; // length
+		const codeArray = [],
+			code1 = Lz77Match.LengthCodeTable[length]; // length
 		codeArray[pos++] = code1 & 0xffff;
 		codeArray[pos++] = (code1 >> 16) & 0xff;
 		codeArray[pos++] = code1 >> 24;
-		const code2 = this.getDistanceCode_(this.backwardDistance); // distance
+		const code2 = Lz77Match.getDistanceCode_(backwardDistance); // distance
 		codeArray[pos++] = code2[0];
 		codeArray[pos++] = code2[1];
 		codeArray[pos++] = code2[2];
@@ -1313,9 +1301,9 @@ class Zip {
 	 */
 	addFile(input, opt_params = {}) {
 		// const filename = /** @type {string} */ opt_params.filename ? opt_params.filename : '';
-		let compressed = /** @type {boolean} */ void 0;
-		let crc32 = /** @type {number} */ 0;
-		let buffer = input instanceof Array ? new Uint8Array(input) : input;
+		let compressed = /** @type {boolean} */ void 0,
+			crc32 = /** @type {number} */ 0,
+			buffer = input instanceof Array ? new Uint8Array(input) : input;
 		if (typeof opt_params.compressionMethod !== 'number')
 			opt_params.compressionMethod = Zlib.CompressionMethod.DEFLATE; // default// その場で圧縮する場合
 		if (opt_params.compress)
@@ -1324,7 +1312,7 @@ class Zip {
 					break;
 				case Zlib.CompressionMethod.DEFLATE:
 					crc32 = CRC32.calc(buffer);
-					buffer = this.deflateWithOption(buffer, opt_params);
+					buffer = Zip.deflateWithOption(buffer, opt_params);
 					compressed = true;
 					break;
 				default:
@@ -1355,7 +1343,8 @@ class Zip {
 		 *   size: number,
 		 *   crc32: number
 		 * }>} */
-		const files = this.files;
+		const files = this.files,
+			fileCount = files.length;
 		/** @type {{
 		 *   buffer: !(Uint8Array),
 		 *   option: Object,
@@ -1364,22 +1353,21 @@ class Zip {
 		 *   size: number,
 		 *   crc32: number
 		 * }} */
-		let localFileSize = /** @type {number} */ 0;
-		let centralDirectorySize = /** @type {number} */ 0;
-		const fileCount = files.length;
+		let localFileSize = /** @type {number} */ 0,
+			centralDirectorySize = /** @type {number} */ 0;
 		for (let i = 0; i < fileCount; ++i) {
-			const file = files[i];
-			const opt = file.option; // ファイルの圧縮
-			const filenameLength = opt.filename ? opt.filename.length : 0;
+			const file = files[i],
+				opt = file.option, // ファイルの圧縮
+				filenameLength = opt.filename ? opt.filename.length : 0,
+				commentLength = opt.comment ? opt.comment.length : 0;
 			// const extraFieldLength = opt.extraField ? opt.extraField.length : 0;
-			const commentLength = opt.comment ? opt.comment.length : 0;
 			if (!file.compressed) {
 				file.crc32 = CRC32.calc(file.buffer); // 圧縮されていなかったら圧縮 // 圧縮前に CRC32 の計算をしておく
 				switch (opt.compressionMethod) {
 					case Zlib.CompressionMethod.STORE:
 						break;
 					case Zlib.CompressionMethod.DEFLATE:
-						file.buffer = this.deflateWithOption(file.buffer, opt);
+						file.buffer = Zip.deflateWithOption(file.buffer, opt);
 						file.compressed = true;
 						break;
 					default:
@@ -1387,29 +1375,29 @@ class Zip {
 				}
 			}
 			if (opt.password !== void 0 || this.password !== void 0) {
-				const key = Zip.createEncryptionKey(opt.password || this.password); // encryption// init encryption
-				const len = file.buffer.length + 12; // add header
-				const buffer = new Uint8Array(len);
+				const key = Zip.createEncryptionKey(opt.password || this.password), // encryption// init encryption
+					len = file.buffer.length + 12, // add header
+					buffer = new Uint8Array(len);
 				buffer.set(file.buffer, 12);
 				for (let j = 0; j < 12; ++j)
-					buffer[j] = this.encode(key, i === 11 ? file.crc32 & 0xff : (Math.random() * 256) | 0);
-				for (let j = 12; j < len; ++j) buffer[j] = this.encode(key, buffer[j]); // data encryption
+					buffer[j] = Zip.encode(key, i === 11 ? file.crc32 & 0xff : (Math.random() * 256) | 0);
+				for (let j = 12; j < len; ++j) buffer[j] = Zip.encode(key, buffer[j]); // data encryption
 				file.buffer = buffer;
 			}
 			localFileSize += 30 + filenameLength + file.buffer.length; // 必要バッファサイズの計算// local file header// file data
 			centralDirectorySize += 46 + filenameLength + commentLength; // file header
 		}
-		const endOfCentralDirectorySize = 22 + (this.comment ? this.comment.length : 0); // end of central directory
-		const output = new Uint8Array(localFileSize + centralDirectorySize + endOfCentralDirectorySize);
-		let op1 = 0;
-		let op2 = localFileSize;
-		let op3 = op2 + centralDirectorySize;
+		const endOfCentralDirectorySize = 22 + (this.comment ? this.comment.length : 0), // end of central directory
+			output = new Uint8Array(localFileSize + centralDirectorySize + endOfCentralDirectorySize);
+		let op1 = 0,
+			op2 = localFileSize,
+			op3 = op2 + centralDirectorySize;
 		for (const file of files) {
-			const opt = file.option; // ファイルの圧縮
-			const filenameLength = opt.filename ? opt.filename.length : 0;
-			const extraFieldLength = 0; // TODO
-			const commentLength = opt.comment ? opt.comment.length : 0;
-			const offset = op1; //// local file header & file header ////
+			const opt = file.option, // ファイルの圧縮
+				filenameLength = opt.filename ? opt.filename.length : 0,
+				extraFieldLength = 0, // TODO
+				commentLength = opt.comment ? opt.comment.length : 0,
+				offset = op1; //// local file header & file header ////
 			output[op1++] = Zip.LocalFileHeaderSignature[0]; // local file header // signature
 			output[op1++] = Zip.LocalFileHeaderSignature[1];
 			output[op1++] = Zip.LocalFileHeaderSignature[2];
@@ -1528,9 +1516,7 @@ class Zip {
 	 * @param {Object=} opt_params options.
 	 * @return {!(Uint8Array)}
 	 */
-	deflateWithOption = function (input, opt_params) {
-		return new RawDeflate(input, opt_params.deflateOption).compress();
-	};
+	static deflateWithOption = (input, opt_params) => new RawDeflate(input, opt_params.deflateOption).compress();
 	/**
 	 * @param {(Uint32Array)} key
 	 * @return {number}
@@ -1544,7 +1530,7 @@ class Zip {
 	 * @param {number} n
 	 * @return {number}
 	 */
-	encode(key, n) {
+	static encode(key, n) {
 		const tmp = Zip.getByte(/** @type {(Uint32Array)} */ (key));
 		Zip.updateKeys(/** @type {(Uint32Array)} */ (key), n);
 		return tmp ^ n;
@@ -1581,14 +1567,10 @@ class LocalFileHeader {
 	}
 	static Flags = Zip.Flags;
 	parse() {
-		const input = this.input;
+		const input = this.input,
+			LFHS = Unzip.LocalFileHeaderSignature;
 		let ip = /** @type {number} */ this.offset;
-		if (
-			input[ip++] !== Unzip.LocalFileHeaderSignature[0] ||
-			input[ip++] !== Unzip.LocalFileHeaderSignature[1] ||
-			input[ip++] !== Unzip.LocalFileHeaderSignature[2] ||
-			input[ip++] !== Unzip.LocalFileHeaderSignature[3]
-		)
+		if (input[ip++] !== LFHS[0] || input[ip++] !== LFHS[1] || input[ip++] !== LFHS[2] || input[ip++] !== LFHS[3])
 			throw new Error('invalid local file header signature'); // local file header signature
 		this.needVersion = input[ip++] | (input[ip++] << 8); // version needed to extract
 		this.flags = input[ip++] | (input[ip++] << 8); // general purpose bit flag
@@ -1646,11 +1628,11 @@ class Deflate {
 	 * @return {!(Uint8Array)} compressed data byte array.
 	 */
 	compress() {
-		let cinfo = /** @type {number} */ 0;
-		let flevel = /** @type {number} */ 0;
-		let pos = /** @type {number} */ 0;
-		const output = this.output;
-		const cm = Zlib.CompressionMethod.DEFLATE; // Compression Method and Flags
+		let cinfo = /** @type {number} */ 0,
+			flevel = /** @type {number} */ 0,
+			pos = /** @type {number} */ 0;
+		const output = this.output,
+			cm = Zlib.CompressionMethod.DEFLATE; // Compression Method and Flags
 		switch (cm) {
 			case Zlib.CompressionMethod.DEFLATE:
 				cinfo = Math.LOG2E * Math.log(RawDeflate.WindowSize) - 8;
@@ -1658,19 +1640,20 @@ class Deflate {
 			default:
 				throw new Error('invalid compression method');
 		}
-		const cmf = (cinfo << 4) | cm;
+		const cmf = (cinfo << 4) | cm,
+			fdict = 0, // Flags
+			CT = Deflate.CompressionType;
 		output[pos++] = cmf;
-		const fdict = 0; // Flags
 		switch (cm) {
 			case Zlib.CompressionMethod.DEFLATE:
 				switch (this.compressionType) {
-					case Deflate.CompressionType.NONE:
+					case CT.NONE:
 						flevel = 0;
 						break;
-					case Deflate.CompressionType.FIXED:
+					case CT.FIXED:
 						flevel = 1;
 						break;
-					case Deflate.CompressionType.DYNAMIC:
+					case CT.DYNAMIC:
 						flevel = 2;
 						break;
 					default:
@@ -1684,11 +1667,11 @@ class Deflate {
 		const fcheck = 31 - ((cmf * 256 + flg) % 31);
 		flg |= fcheck;
 		output[pos++] = flg;
-		const adler = Adler32.mkHash(this.input); // Adler-32 checksum
 		this.rawDeflate.op = pos;
-		const output2 = this.rawDeflate.compress();
-		let pos2 = output2.length;
-		let output3 = new Uint8Array(output2.buffer); // subarray 分を元にもどす
+		const adler = Adler32.mkHash(this.input), // Adler-32 checksum
+			output2 = this.rawDeflate.compress();
+		let pos2 = output2.length,
+			output3 = new Uint8Array(output2.buffer); // subarray 分を元にもどす
 		if (output3.length <= pos2 + 4) {
 			this.output = new Uint8Array(output3.length + 4); // expand buffer
 			this.output.set(output3);
@@ -1732,17 +1715,17 @@ class Gunzip {
 		const il = this.input.length; //input length.
 		while (this.ip < il) this.decodeMember();
 		this.decompressed = true;
-		return this.concatMember();
+		return Gunzip.concatMember(this.member);
 	}
 	/**
 	 * decode gzip member.
 	 */
 	decodeMember() {
-		const member = /** @type {Zlib.GunzipMember} */ new GunzipMember();
+		const member = /** @type {Zlib.GunzipMember} */ new GunzipMember(),
+			input = this.input;
 		/** @type {number} character code */
-		let c;
-		const input = this.input;
-		let ip = this.ip;
+		let c,
+			ip = this.ip;
 		member.id1 = input[ip++];
 		member.id2 = input[ip++];
 		if (member.id1 !== 0x1f || member.id2 !== 0x8b)
@@ -1761,7 +1744,7 @@ class Gunzip {
 		member.os = input[ip++]; // operating system
 		if ((member.flg & Gzip.FlagsMask.FEXTRA) > 0) {
 			member.xlen = input[ip++] | (input[ip++] << 8); // extra
-			ip = this.decodeSubField(ip, member.xlen);
+			ip = Gunzip.decodeSubField(ip, member.xlen);
 		}
 		if ((member.flg & Gzip.FlagsMask.FNAME) > 0) {
 			const str = []; // fname
@@ -1779,20 +1762,17 @@ class Gunzip {
 		}
 		// isize を事前に取得すると展開後のサイズが分かるため、
 		// inflate処理のバッファサイズが事前に分かり、高速になる
-		const isize =
-			input[input.length - 4] |
-			(input[input.length - 3] << 8) |
-			(input[input.length - 2] << 16) |
-			(input[input.length - 1] << 24);
+		const l = input.length,
+			isize = input[l - 4] | (input[l - 3] << 8) | (input[l - 2] << 16) | (input[l - 1] << 24);
 		// isize の妥当性チェック
 		// ハフマン符号では最小 2-bit のため、最大で 1/4 になる
 		// LZ77 符号では 長さと距離 2-Byte で最大 258-Byte を表現できるため、
 		// 1/128 になるとする
 		// ここから入力バッファの残りが isize の 512 倍以上だったら
 		// サイズ指定のバッファ確保は行わない事とする
-		const bufferSize = input.length - ip - /* CRC-32 */ 4 - /* ISIZE */ 4 < isize * 512 ? isize : void 0; // inflate size
-		const rawinflate = new RawInflate(input, { index: ip, bufferSize }); // compressed block // RawInflate implementation.
-		const inflated = rawinflate.decompress(); // inflated data.
+		const bufferSize = l - ip - /* CRC-32 */ 4 - /* ISIZE */ 4 < isize * 512 ? isize : void 0, // inflate size
+			rawinflate = new RawInflate(input, { index: ip, bufferSize }), // compressed block // RawInflate implementation.
+			inflated = rawinflate.decompress(); // inflated data.
 		member.data = inflated;
 		let ipr = rawinflate.ip;
 		const crc32 = (input[ipr++] | (input[ipr++] << 8) | (input[ipr++] << 16) | (input[ipr++] << 24)) >>> 0; // crc32
@@ -1812,16 +1792,13 @@ class Gunzip {
 	 * サブフィールドのデコード
 	 * XXX: 現在は何もせずスキップする
 	 */
-	decodeSubField(ip, length) {
-		return ip + length;
-	}
+	static decodeSubField = (ip, length) => ip + length;
 	/**
 	 * @return {!(Uint8Array)}
 	 */
-	concatMember() {
-		const members = /** @type {Array.<Zlib.GunzipMember>} */ this.member;
-		let p = 0;
-		let size = 0;
+	static concatMember(members) {
+		let p = 0,
+			size = 0;
 		for (const member of members) size += member.data.length;
 		const buffer = new Uint8Array(size);
 		for (const member of members) {
@@ -1918,16 +1895,16 @@ class Gzip {
 	 * @return {!(Uint8Array)} gzip binary array.
 	 */
 	compress() {
-		const output = /** @type {!(Uint8Array)} output buffer. */ new Uint8Array(Gzip.DefaultBufferSize);
-		let op = /** @type {number} output buffer pointer. */ 0;
-		const input = this.input;
-		const ip = this.ip;
-		const filename = this.filename;
-		const comment = this.comment;
+		const output = /** @type {!(Uint8Array)} output buffer. */ new Uint8Array(Gzip.DefaultBufferSize),
+			input = this.input,
+			ip = this.ip,
+			filename = this.filename,
+			comment = this.comment;
+		let op = /** @type {number} output buffer pointer. */ 0,
+			flg = 0; // flags
 		output[op++] = 0x1f; // check signature
 		output[op++] = 0x8b;
 		output[op++] = 8; /* XXX: use Zlib const */ // check compression method
-		let flg = 0; // flags
 		if (this.flags.fname) flg |= Gzip.FlagsMask.FNAME;
 		if (this.flags.fcomment) flg |= Gzip.FlagsMask.FCOMMENT;
 		if (this.flags.fhcrc) flg |= Gzip.FlagsMask.FHCRC;
@@ -1967,8 +1944,8 @@ class Gzip {
 		this.deflateOptions.outputBuffer = output; // add compress option
 		this.deflateOptions.outputIndex = op;
 		const rawdeflate = new RawDeflate(input, this.deflateOptions); // compress//raw deflate object.
-		let output2 = rawdeflate.compress();
-		let op2 = rawdeflate.op;
+		let output2 = rawdeflate.compress(),
+			op2 = rawdeflate.op;
 		if (op2 + 8 > output2.buffer.byteLength) {
 			this.output = new Uint8Array(op2 + 8); // expand buffer
 			this.output.set(new Uint8Array(output2.buffer));
@@ -2038,9 +2015,9 @@ class InflateStream {
 	}
 	readHeader() {
 		let ip = this.ip;
-		const input = this.input;
-		const cmf = input[ip++]; // Compression Method and Flags
-		const flg = input[ip++];
+		const input = this.input,
+			cmf = input[ip++], // Compression Method and Flags
+			flg = input[ip++];
 		if (cmf === void 0 || flg === void 0) return -1;
 		switch (cmf & 0x0f) {
 			case Zlib.CompressionMethod.DEFLATE: // compression method
@@ -2072,8 +2049,8 @@ class Inflate {
 		this.ip = /** @type {number} */ 0;
 		if (opt_params.index) this.ip = opt_params.index; // option parameters
 		if (opt_params.verify) this.verify = /** @type {(boolean|undefined)} verify flag. */ opt_params.verify;
-		const cmf = /** @type {number} */ input[this.ip++]; // Compression Method and Flags
-		const flg = /** @type {number} */ input[this.ip++];
+		const cmf = /** @type {number} */ input[this.ip++], // Compression Method and Flags
+			flg = /** @type {number} */ input[this.ip++];
 		switch (cmf & 0x0f) {
 			case Zlib.CompressionMethod.DEFLATE:
 				this.method = Zlib.CompressionMethod.DEFLATE; // compression method
@@ -2095,8 +2072,8 @@ class Inflate {
 	 * @return {!(Uint8Array)} inflated buffer.
 	 */
 	decompress() {
-		const input = /** @type {!(Uint8Array)} input buffer. */ this.input;
-		const buffer = /** @type {!(Uint8Array)} inflated buffer. */ this.rawinflate.decompress();
+		const input = /** @type {!(Uint8Array)} input buffer. */ this.input,
+			buffer = /** @type {!(Uint8Array)} inflated buffer. */ this.rawinflate.decompress();
 		this.ip = this.rawinflate.ip;
 		if (this.verify) {
 			// console.warn('decompress input:' + JSON.stringify(input), this.ip);
@@ -2105,9 +2082,8 @@ class Inflate {
 				((input[this.ip++] << 24) | (input[this.ip++] << 16) | (input[this.ip++] << 8) | input[this.ip++]) >>>
 				0;
 			// console.warn('decompress adler32:' + adler32, Adler32.mkHash(buffer), buffer);
-			if (adler32 !== Adler32.mkHash(buffer)) {
+			if (adler32 !== Adler32.mkHash(buffer))
 				throw new Error('invalid adler-32 checksum ' + adler32 + '/' + Adler32.mkHash(buffer) + ' ' + '');
-			}
 		}
 		return buffer;
 	}
@@ -2175,41 +2151,43 @@ class RawInflateStream {
 		let stop = /** @type {boolean} */ false;
 		if (newInput !== void 0) this.input = newInput;
 		if (ip !== void 0) this.ip = ip;
+		const S = RawInflateStream.Status,
+			BT = RawInflateStream.BlockType;
 		while (!stop)
 			switch (this.status) {
-				case RawInflateStream.Status.INITIALIZED: // block header// decompress
-				case RawInflateStream.Status.BLOCK_HEADER_START:
+				case S.INITIALIZED: // block header// decompress
+				case S.BLOCK_HEADER_START:
 					if (this.readBlockHeader() < 0) stop = true;
 					break;
-				case RawInflateStream.Status.BLOCK_HEADER_END: /* FALLTHROUGH */ // block body
-				case RawInflateStream.Status.BLOCK_BODY_START:
+				case S.BLOCK_HEADER_END: /* FALLTHROUGH */ // block body
+				case S.BLOCK_BODY_START:
 					switch (this.currentBlockType) {
-						case RawInflateStream.BlockType.UNCOMPRESSED:
+						case BT.UNCOMPRESSED:
 							if (this.readUncompressedBlockHeader() < 0) stop = true;
 							break;
-						case RawInflateStream.BlockType.FIXED:
+						case BT.FIXED:
 							if (this.parseFixedHuffmanBlock() < 0) stop = true;
 							break;
-						case RawInflateStream.BlockType.DYNAMIC:
+						case BT.DYNAMIC:
 							if (this.parseDynamicHuffmanBlock() < 0) stop = true;
 							break;
 					}
 					break;
-				case RawInflateStream.Status.BLOCK_BODY_END: // decode data
-				case RawInflateStream.Status.DECODE_BLOCK_START:
+				case S.BLOCK_BODY_END: // decode data
+				case S.DECODE_BLOCK_START:
 					switch (this.currentBlockType) {
-						case RawInflateStream.BlockType.UNCOMPRESSED:
+						case BT.UNCOMPRESSED:
 							if (this.parseUncompressedBlock() < 0) stop = true;
 							break;
-						case RawInflateStream.BlockType.FIXED: /* FALLTHROUGH */
-						case RawInflateStream.BlockType.DYNAMIC:
+						case BT.FIXED: /* FALLTHROUGH */
+						case BT.DYNAMIC:
 							if (this.decodeHuffman() < 0) stop = true;
 							break;
 					}
 					break;
-				case RawInflateStream.Status.DECODE_BLOCK_END:
+				case S.DECODE_BLOCK_END:
 					if (this.bfinal) stop = true;
-					else this.status = RawInflateStream.Status.INITIALIZED;
+					else this.status = S.INITIALIZED;
 					break;
 			}
 		return this.concatBuffer();
@@ -2289,9 +2267,11 @@ class RawInflateStream {
 	/**
 	 * parse deflated block.
 	 */
-	readBlockHeader = function () {
+	readBlockHeader() {
 		let hdr = /** @type {number} header */ this.readBits(3);
-		this.status = RawInflateStream.Status.BLOCK_HEADER_START;
+		const S = RawInflateStream.Status,
+			BT = RawInflateStream.BlockType;
+		this.status = S.BLOCK_HEADER_START;
 		this.save_();
 		if (hdr < 0) {
 			this.restore_();
@@ -2301,30 +2281,30 @@ class RawInflateStream {
 		hdr >>>= 1; // BTYPE
 		switch (hdr) {
 			case 0: // uncompressed
-				this.currentBlockType = RawInflateStream.BlockType.UNCOMPRESSED;
+				this.currentBlockType = BT.UNCOMPRESSED;
 				break;
 			case 1: // fixed huffman
-				this.currentBlockType = RawInflateStream.BlockType.FIXED;
+				this.currentBlockType = BT.FIXED;
 				break;
 			case 2: // dynamic huffman
-				this.currentBlockType = RawInflateStream.BlockType.DYNAMIC;
+				this.currentBlockType = BT.DYNAMIC;
 				break;
 			default: // reserved or other
 				throw new Error(`unknown BTYPE: ${hdr}`);
 		}
-		this.status = RawInflateStream.Status.BLOCK_HEADER_END;
-	};
+		this.status = S.BLOCK_HEADER_END;
+	}
 	/**
 	 * read inflate bits
 	 * @param {number} length bits length.
 	 * @return {number} read bits.
 	 */
 	readBits(length) {
-		let bitsbuf = this.bitsbuf;
-		let bitsbuflen = this.bitsbuflen;
 		const input = this.input;
-		let ip = this.ip;
-		let octet = /** @type {number} input and output byte. */ 0;
+		let bitsbuf = this.bitsbuf,
+			bitsbuflen = this.bitsbuflen,
+			ip = this.ip,
+			octet = /** @type {number} input and output byte. */ 0;
 		while (bitsbuflen < length) {
 			if (input.length <= ip) return -1; // not enough buffer
 			octet = input[ip++]; // input byte
@@ -2345,14 +2325,14 @@ class RawInflateStream {
 	 * @return {number} huffman code.
 	 */
 	readCodeByTable(table) {
-		let bitsbuf = this.bitsbuf;
-		let bitsbuflen = this.bitsbuflen;
-		const input = this.input;
-		let ip = this.ip;
-		const codeTable = /** @type {!(Uint8Array)} huffman code table */ table[0];
-		const maxCodeLength = /** @type {number} */ table[1];
+		const input = this.input,
+			codeTable = /** @type {!(Uint8Array)} huffman code table */ table[0],
+			maxCodeLength = /** @type {number} */ table[1];
+		let bitsbuf = this.bitsbuf,
+			bitsbuflen = this.bitsbuflen,
+			ip = this.ip,
+			octet;
 		/** @type {number} input byte */
-		let octet;
 		while (bitsbuflen < maxCodeLength) {
 			if (input.length <= ip) return -1; // not enough buffer
 			octet = input[ip++];
@@ -2360,8 +2340,8 @@ class RawInflateStream {
 			bitsbuflen += 8;
 		}
 		const codeWithLength =
-			/** @type {number} code length & code (16bit, 16bit) */ codeTable[bitsbuf & ((1 << maxCodeLength) - 1)]; // read max length
-		const codeLength = /** @type {number} code bits length */ codeWithLength >>> 16;
+				/** @type {number} code length & code (16bit, 16bit) */ codeTable[bitsbuf & ((1 << maxCodeLength) - 1)], // read max length
+			codeLength = /** @type {number} code bits length */ codeWithLength >>> 16;
 		if (codeLength > bitsbuflen) throw new Error(`invalid code length: ${codeLength}`);
 		this.bitsbuf = bitsbuf >> codeLength;
 		this.bitsbuflen = bitsbuflen - codeLength;
@@ -2376,8 +2356,8 @@ class RawInflateStream {
 		let ip = this.ip;
 		this.status = RawInflateStream.Status.BLOCK_BODY_START;
 		if (ip + 4 >= input.length) return -1;
-		const len = /** @type {number} block length */ input[ip++] | (input[ip++] << 8);
-		const nlen = /** @type {number} number for check block length */ input[ip++] | (input[ip++] << 8);
+		const len = /** @type {number} block length */ input[ip++] | (input[ip++] << 8),
+			nlen = /** @type {number} number for check block length */ input[ip++] | (input[ip++] << 8);
 		if (len === ~nlen) throw new Error('invalid uncompressed block header: length verify'); // check len & nlen
 		this.bitsbuf = 0; // skip buffered header bits
 		this.bitsbuflen = 0;
@@ -2390,10 +2370,10 @@ class RawInflateStream {
 	 */
 	parseUncompressedBlock() {
 		const input = this.input;
-		let ip = this.ip;
-		let output = this.output;
-		let op = this.op;
-		let len = this.blockLength;
+		let ip = this.ip,
+			output = this.output,
+			op = this.op,
+			len = this.blockLength;
 		this.status = RawInflateStream.Status.DECODE_BLOCK_START;
 		// copy
 		// XXX: とりあえず素直にコピー
@@ -2447,9 +2427,9 @@ class RawInflateStream {
 		const codeLengths = /** @type {!(Uint8Array)} code lengths. */ new Uint8Array(RawInflateStream.Order.length);
 		this.status = RawInflateStream.Status.BLOCK_BODY_START;
 		this.save_();
-		const hlit = /** @type {number} number of literal and length codes. */ this.readBits(5) + 257;
-		const hdist = /** @type {number} number of distance codes. */ this.readBits(5) + 1;
-		const hclen = /** @type {number} number of code lengths. */ this.readBits(4) + 4;
+		const hlit = /** @type {number} number of literal and length codes. */ this.readBits(5) + 257,
+			hdist = /** @type {number} number of distance codes. */ this.readBits(5) + 1,
+			hclen = /** @type {number} number of code lengths. */ this.readBits(4) + 4;
 		if (hlit < 0 || hdist < 0 || hclen < 0) {
 			this.restore_();
 			return -1;
@@ -2470,9 +2450,9 @@ class RawInflateStream {
 			if (bits < 0) throw new Error('not enough input');
 			codeLengths[RawInflateStream.Order[i]] = bits;
 		}
-		const h = hlit + hdist;
-		const codeLengthsTable = /** @type {!Array} code lengths table. */ Huffman.buildHuffmanTable(codeLengths); // decode length table
-		const lengthTable = /** @type {!(Uint8Array.<number>)} code length table. */ new Uint8Array(h);
+		const h = hlit + hdist,
+			codeLengthsTable = /** @type {!Array} code lengths table. */ Huffman.buildHuffmanTable(codeLengths), // decode length table
+			lengthTable = /** @type {!(Uint8Array.<number>)} code length table. */ new Uint8Array(h);
 		for (let i = 0; i < h; ) {
 			let bits = /** @type {number} */ 0;
 			const code = this.readCodeByTable(codeLengthsTable);
@@ -2511,12 +2491,12 @@ class RawInflateStream {
 	 * decode huffman code (dynamic)
 	 * @return {(number|undefined)} -1 is error.
 	 */
-	decodeHuffman = function () {
-		let output = this.output;
-		let op = this.op;
-		const litlen = this.litlenTable;
-		const dist = this.distTable;
-		let olength = output.length;
+	decodeHuffman() {
+		const litlen = this.litlenTable,
+			dist = this.distTable;
+		let output = this.output,
+			op = this.op,
+			olength = output.length;
 		this.status = RawInflateStream.Status.DECODE_BLOCK_START;
 		while (output) {
 			this.save_();
@@ -2578,47 +2558,49 @@ class RawInflateStream {
 		}
 		this.op = op;
 		this.status = RawInflateStream.Status.DECODE_BLOCK_END;
-	};
+	}
 	/**
 	 * expand output buffer. (dynamic)
 	 * @param {Object=} opt_param option parameters.
 	 * @return {!(Uint8Array)} output buffer pointer.
 	 */
-	expandBuffer = function (opt_param) {
-		let ratio = /** @type {number} expantion ratio. */ (this.input.length / this.ip + 1) | 0;
-		let newSize = /** @type {number} new output buffer size. */ 0;
-		const input = this.input;
-		const output = this.output;
+	expandBuffer(opt_param) {
+		const input = this.input,
+			output = this.output;
+		let ratio = /** @type {number} expantion ratio. */ (input.length / this.ip + 1) | 0,
+			newSize = /** @type {number} new output buffer size. */ 0;
 		if (opt_param) {
 			if (typeof opt_param.fixRatio === 'number') ratio = opt_param.fixRatio;
 			if (typeof opt_param.addRatio === 'number') ratio += opt_param.addRatio;
 		}
 		if (ratio < 2) {
 			const maxHuffCode =
-				/** @type {number} maximum number of huffman code. */ (input.length - this.ip) / this.litlenTable[2]; // calculate new buffer size
-			const maxInflateSize = /** @type {number} max inflate size. */ ((maxHuffCode / 2) * 258) | 0;
+					/** @type {number} maximum number of huffman code. */ (input.length - this.ip) /
+					this.litlenTable[2], // calculate new buffer size
+				maxInflateSize = /** @type {number} max inflate size. */ ((maxHuffCode / 2) * 258) | 0;
 			newSize = maxInflateSize < output.length ? output.length + maxInflateSize : output.length << 1;
 		} else newSize = output.length * ratio;
 		const buffer = /** @type {!(Uint8Array)} store buffer. */ new Uint8Array(newSize); // buffer expantion
 		buffer.set(output);
 		this.output = buffer;
 		return this.output;
-	};
+	}
 	/**
 	 * concat output buffer. (dynamic)
 	 * @return {!(Uint8Array)} output buffer.
 	 */
 	concatBuffer() {
-		const op = /** @type {number} */ this.op;
-		const buffer = /** @type {!(Uint8Array)} output buffer. */ this.resize
-			? new Uint8Array(this.output.subarray(this.sp, op))
-			: this.output.subarray(this.sp, op);
+		const op = /** @type {number} */ this.op,
+			buffer = /** @type {!(Uint8Array)} output buffer. */ this.resize
+				? new Uint8Array(this.output.subarray(this.sp, op))
+				: this.output.subarray(this.sp, op),
+			MBL = RawInflateStream.MaxBackwardLength,
+			tmp = /** @type {Uint8Array} */ (this.output);
 		this.sp = op;
-		if (op > RawInflateStream.MaxBackwardLength + this.bufferSize) {
-			this.op = this.sp = RawInflateStream.MaxBackwardLength; // compaction
-			const tmp = /** @type {Uint8Array} */ (this.output);
-			this.output = new Uint8Array(this.bufferSize + RawInflateStream.MaxBackwardLength);
-			this.output.set(tmp.subarray(op - RawInflateStream.MaxBackwardLength, op));
+		if (op > MBL + this.bufferSize) {
+			this.op = this.sp = MBL; // compaction
+			this.output = new Uint8Array(this.bufferSize + MBL);
+			this.output.set(tmp.subarray(op - MBL, op));
 		}
 		return buffer;
 	}
@@ -2791,10 +2773,10 @@ export class RawInflate {
 	 * @return {number} read bits.
 	 */
 	readBits(length, msg = '') {
-		let bitsbuf = this.bitsbuf;
-		let bitsbuflen = this.bitsbuflen;
 		const input = this.input;
-		let ip = this.ip;
+		let bitsbuf = this.bitsbuf,
+			bitsbuflen = this.bitsbuflen,
+			ip = this.ip;
 		if (ip + ((length - bitsbuflen + 7) >> 3) >= input.length) throw new Error('input buffer is broken'); // input byte
 		while (bitsbuflen < length) {
 			const a = input[ip++];
@@ -2815,20 +2797,20 @@ export class RawInflate {
 	 * @return {number} huffman code.
 	 */
 	readCodeByTable(table) {
-		let bitsbuf = this.bitsbuf;
-		let bitsbuflen = this.bitsbuflen;
-		const input = this.input;
-		let ip = this.ip;
-		const inputLength = input.length;
-		const codeTable = /** @type {!(Uint8Array)} huffman code table */ table[0];
-		const maxCodeLength = table[1];
+		let bitsbuf = this.bitsbuf,
+			bitsbuflen = this.bitsbuflen,
+			ip = this.ip;
+		const input = this.input,
+			inputLength = input.length,
+			codeTable = /** @type {!(Uint8Array)} huffman code table */ table[0],
+			maxCodeLength = table[1];
 		while (bitsbuflen < maxCodeLength) {
 			if (ip >= inputLength) break; // not enough buffer
 			bitsbuf |= input[ip++] << bitsbuflen;
 			bitsbuflen += 8;
 		}
-		const codeWithLength = codeTable[bitsbuf & ((1 << maxCodeLength) - 1)]; //code length & code (16bit, 16bit) // read max length
-		const codeLength = codeWithLength >>> 16; //code bits length
+		const codeWithLength = codeTable[bitsbuf & ((1 << maxCodeLength) - 1)], //code length & code (16bit, 16bit) // read max length
+			codeLength = codeWithLength >>> 16; //code bits length
 		if (codeLength > bitsbuflen) throw new Error(`invalid code length: ${codeLength}`);
 		this.bitsbuf = bitsbuf >> codeLength;
 		this.bitsbuflen = bitsbuflen - codeLength;
@@ -2839,12 +2821,12 @@ export class RawInflate {
 	 * parse uncompressed block.
 	 */
 	parseUncompressedBlock() {
-		const input = this.input;
-		let ip = this.ip;
-		let output = this.output;
-		let op = this.op;
-		const inputLength = input.length;
-		const olength = output.length; //output buffer length
+		let ip = this.ip,
+			output = this.output,
+			op = this.op;
+		const input = this.input,
+			inputLength = input.length,
+			olength = output.length; //output buffer length
 		this.bitsbuf = 0; // skip buffered header bits
 		this.bitsbuflen = 0;
 		if (ip + 1 >= inputLength) throw new Error('invalid uncompressed block header: LEN');
@@ -2899,17 +2881,17 @@ export class RawInflate {
 	 */
 	parseDynamicHuffmanBlock() {
 		const hlit =
-			/** @type {number} number of literal and length codes. */ this.readBits(5, 'parseDynamicHuffmanBlock') +
-			257;
-		const hdist = /** @type {number} number of distance codes. */ this.readBits(5, 'parseDynamicHuffmanBlock') + 1;
-		const hclen = /** @type {number} number of code lengths. */ this.readBits(4, 'parseDynamicHuffmanBlock') + 4;
-		const codeLengths = /** @type {!(Uint8Array.<number>)} code lengths. */ new Uint8Array(RawInflate.Order.length);
-		let prev = /** @type {number} */ 0;
-		let repeat = /** @type {number} */ 0;
+				/** @type {number} number of literal and length codes. */ this.readBits(5, 'parseDynamicHuffmanBlock') +
+				257,
+			hdist = /** @type {number} number of distance codes. */ this.readBits(5, 'parseDynamicHuffmanBlock') + 1,
+			hclen = /** @type {number} number of code lengths. */ this.readBits(4, 'parseDynamicHuffmanBlock') + 4,
+			codeLengths = /** @type {!(Uint8Array.<number>)} code lengths. */ new Uint8Array(RawInflate.Order.length);
+		let prev = /** @type {number} */ 0,
+			repeat = /** @type {number} */ 0;
 		for (let i = 0; i < hclen; ++i) codeLengths[RawInflate.Order[i]] = this.readBits(3, 'parseDynamicHuffmanBlock'); // decode code lengths
-		const codeLengthsTable = Huffman.buildHuffmanTable(codeLengths); //code lengths table. decode length table
-		const len = hlit + hdist;
-		const lengthTable = new Uint8Array(len); //code length table.
+		const codeLengthsTable = Huffman.buildHuffmanTable(codeLengths), //code lengths table. decode length table
+			len = hlit + hdist,
+			lengthTable = new Uint8Array(len); //code length table.
 		for (let i = 0; i < len; ) {
 			const code = this.readCodeByTable(codeLengthsTable);
 			switch (code) {
@@ -2933,8 +2915,8 @@ export class RawInflate {
 					break;
 			}
 		}
-		const litlenTable = Huffman.buildHuffmanTable(lengthTable.subarray(0, hlit)); //literal and length code table.
-		const distTable = Huffman.buildHuffmanTable(lengthTable.subarray(hlit)); //distance code table.
+		const litlenTable = Huffman.buildHuffmanTable(lengthTable.subarray(0, hlit)), //literal and length code table.
+			distTable = Huffman.buildHuffmanTable(lengthTable.subarray(hlit)); //distance code table.
 		switch (this.bufferType) {
 			case RawInflate.BufferType.ADAPTIVE:
 				this.decodeHuffmanAdaptive(litlenTable, distTable);
@@ -2952,15 +2934,15 @@ export class RawInflate {
 	 * @param {!(Uint8Array)} dist distination code table.
 	 */
 	decodeHuffmanBlock(litlen, dist) {
-		let output = this.output;
-		let op = this.op;
+		let output = this.output,
+			op = this.op,
+			code; //huffman code.
 		this.currentLitlenTable = litlen;
-		const olength = output.length - Zlib.RawInflate.MaxCopyLength; //output position limit.
-		let code; //huffman code.
-		const lengthCodeTable = RawInflate.LengthCodeTable;
-		const lengthExtraTable = RawInflate.LengthExtraTable;
-		const distCodeTable = RawInflate.DistCodeTable;
-		const distExtraTable = RawInflate.DistExtraTable;
+		const olength = output.length - RawInflate.MaxCopyLength, //output position limit.
+			lengthCodeTable = RawInflate.LengthCodeTable,
+			lengthExtraTable = RawInflate.LengthExtraTable,
+			distCodeTable = RawInflate.DistCodeTable,
+			distExtraTable = RawInflate.DistExtraTable;
 		while ((code = this.readCodeByTable(litlen)) !== 256) {
 			if (code === 0) return;
 			if (code < 256) {
@@ -2997,15 +2979,15 @@ export class RawInflate {
 	 * @param {!(Uint8Array)} dist distination code table.
 	 */
 	decodeHuffmanAdaptive(litlen, dist) {
-		let output = this.output;
-		let op = this.op;
+		let output = this.output,
+			op = this.op,
+			olength = output.length, //output position limit.
+			code; //huffman code.
 		this.currentLitlenTable = litlen;
-		let olength = output.length; //output position limit.
-		let code; //huffman code.
-		const lengthCodeTable = RawInflate.LengthCodeTable;
-		const lengthExtraTable = RawInflate.LengthExtraTable;
-		const distCodeTable = RawInflate.DistCodeTable;
-		const distExtraTable = RawInflate.DistExtraTable;
+		const lengthCodeTable = RawInflate.LengthCodeTable,
+			lengthExtraTable = RawInflate.LengthExtraTable,
+			distCodeTable = RawInflate.DistCodeTable,
+			distExtraTable = RawInflate.DistExtraTable;
 		while ((code = this.readCodeByTable(litlen)) !== 256) {
 			if (code < 256) {
 				if (op >= olength) {
@@ -3039,9 +3021,9 @@ export class RawInflate {
 	 * @return {!(Uint8Array)} output buffer.
 	 */
 	expandBufferBlock() {
-		const backward = this.op - RawInflate.MaxBackwardLength; //backward base point
-		const buffer = new Uint8Array(backward); //store buffer.
-		const output = this.output;
+		const backward = this.op - RawInflate.MaxBackwardLength, //backward base point
+			buffer = new Uint8Array(backward), //store buffer.
+			output = this.output;
 		buffer.set(output.subarray(RawInflate.MaxBackwardLength, buffer.length)); // copy to output buffer
 		this.blocks.push(buffer);
 		this.totalpos += buffer.length;
@@ -3055,21 +3037,21 @@ export class RawInflate {
 	 * @return {!(Uint8Array)} output buffer pointer.
 	 */
 	expandBufferAdaptive(opt_param = {}) {
-		let ratio = (this.input.length / this.ip + 1) | 0; //expantion ratio.
-		let newSize; //new output buffer size.
-		const input = this.input;
-		const output = this.output;
-		const currentLen = output.length;
+		let ratio = (this.input.length / this.ip + 1) | 0, //expantion ratio.
+			newSize; //new output buffer size.
+		const input = this.input,
+			output = this.output,
+			currentLen = output.length;
 		if (currentLen === MAX_FIREFOX_SIZE) throw new Error('TOO LOG LENGTH OF BUFFER ADAPTIVE!');
 		if (typeof opt_param.fixRatio === 'number') ratio = opt_param.fixRatio;
 		if (typeof opt_param.addRatio === 'number') ratio += opt_param.addRatio;
 		if (ratio < 2) {
-			const maxHuffCode = (input.length - this.ip) / this.currentLitlenTable[2]; // calculate new buffer size //maximum number of huffman code.
-			const maxInflateSize = ((maxHuffCode / 2) * 258) | 0; //max inflate size.
+			const maxHuffCode = (input.length - this.ip) / this.currentLitlenTable[2], // calculate new buffer size //maximum number of huffman code.
+				maxInflateSize = ((maxHuffCode / 2) * 258) | 0; //max inflate size.
 			newSize = maxInflateSize < currentLen ? currentLen + maxInflateSize : currentLen << 1;
 		} else newSize = currentLen * ratio;
-		const newSizeAdaptiveMax = MAX_FIREFOX_SIZE > newSize ? newSize : MAX_FIREFOX_SIZE;
-		const buffer = new Uint8Array(newSizeAdaptiveMax); // buffer expantion //store buffer.
+		const newSizeAdaptiveMax = MAX_FIREFOX_SIZE > newSize ? newSize : MAX_FIREFOX_SIZE,
+			buffer = new Uint8Array(newSizeAdaptiveMax); // buffer expantion //store buffer.
 		buffer.set(output);
 		this.output = buffer;
 		return this.output;
@@ -3080,10 +3062,10 @@ export class RawInflate {
 	 */
 	concatBufferBlock() {
 		let pos = 0; //buffer pointer.
-		const limit = this.totalpos + (this.op - RawInflate.MaxBackwardLength); //buffer pointer.
-		const output = this.output; //output block array.
-		const blocks = this.blocks; //blocks array.
-		const buffer = new Uint8Array(limit); //output buffer.
+		const limit = this.totalpos + (this.op - RawInflate.MaxBackwardLength), //buffer pointer.
+			output = this.output, //output block array.
+			blocks = this.blocks, //blocks array.
+			buffer = new Uint8Array(limit); //output buffer.
 		if (blocks.length === 0) return output.subarray(RawInflate.MaxBackwardLength, this.op); // single buffer
 		for (const block of blocks) for (let j = 0, jl = block.length; j < jl; ++j) buffer[pos++] = block[j]; // copy to buffer
 		for (let i = RawInflate.MaxBackwardLength, il = this.op; i < il; ++i) buffer[pos++] = output[i]; // current buffer
@@ -3150,13 +3132,14 @@ export class Unzip extends Zip {
 	 */
 	static CentralDirectorySignature = Zip.CentralDirectorySignature;
 	searchEndOfCentralDirectoryRecord() {
-		const input = this.input;
+		const input = this.input,
+			CDS = Unzip.CentralDirectorySignature;
 		for (let ip = input.length - 12; ip > 0; --ip) {
 			if (
-				input[ip] === Unzip.CentralDirectorySignature[0] &&
-				input[ip + 1] === Unzip.CentralDirectorySignature[1] &&
-				input[ip + 2] === Unzip.CentralDirectorySignature[2] &&
-				input[ip + 3] === Unzip.CentralDirectorySignature[3]
+				input[ip] === CDS[0] &&
+				input[ip + 1] === CDS[1] &&
+				input[ip + 2] === CDS[2] &&
+				input[ip + 3] === CDS[3]
 			) {
 				this.eocdrOffset = ip;
 				return;
@@ -3165,15 +3148,11 @@ export class Unzip extends Zip {
 		throw new Error('End of Central Directory Record not found');
 	}
 	parseEndOfCentralDirectoryRecord() {
-		const input = this.input;
+		const input = this.input,
+			CDS = Unzip.CentralDirectorySignature;
 		if (!this.eocdrOffset) this.searchEndOfCentralDirectoryRecord();
 		let ip = this.eocdrOffset;
-		if (
-			input[ip++] !== Unzip.CentralDirectorySignature[0] ||
-			input[ip++] !== Unzip.CentralDirectorySignature[1] ||
-			input[ip++] !== Unzip.CentralDirectorySignature[2] ||
-			input[ip++] !== Unzip.CentralDirectorySignature[3]
-		) {
+		if (input[ip++] !== CDS[0] || input[ip++] !== CDS[1] || input[ip++] !== CDS[2] || input[ip++] !== CDS[3]) {
 			throw new Error('invalid signature'); // signature
 		}
 		this.numberOfThisDisk = input[ip++] | (input[ip++] << 8); // number of this disk
@@ -3191,8 +3170,8 @@ export class Unzip extends Zip {
 		if (this.fileHeaderList) return;
 		if (this.centralDirectoryOffset === void 0) this.parseEndOfCentralDirectoryRecord();
 		let ip = this.centralDirectoryOffset;
-		const filelist = [];
-		const filetable = {};
+		const filelist = [],
+			filetable = {};
 		for (let i = 0, il = this.totalEntries; i < il; ++i) {
 			const fileHeader = new FileHeader(this.input, ip);
 			ip += fileHeader.length;
@@ -3209,8 +3188,8 @@ export class Unzip extends Zip {
 	 * @return {!(Uint8Array)} file data.
 	 */
 	getFileData(index, opt_params = {}) {
-		const input = this.input;
-		const fileHeaderList = this.fileHeaderList;
+		const input = this.input,
+			fileHeaderList = this.fileHeaderList;
 		if (!fileHeaderList) this.parseFileHeader();
 		if (fileHeaderList[index] === void 0) throw new Error('wrong index');
 		let offset = fileHeaderList[index].relativeOffset;
@@ -3221,10 +3200,10 @@ export class Unzip extends Zip {
 		if ((localFileHeader.flags & LocalFileHeader.Flags.ENCRYPT) !== 0) {
 			if (!(opt_params.password || this.password)) throw new Error('please set password'); // decryption
 			const key = Unzip.createDecryptionKey(opt_params.password || this.password);
-			for (let i = offset, il = offset + 12; i < il; ++i) this.decode(key, input[i]); // encryption header
+			for (let i = offset, il = offset + 12; i < il; ++i) Unzip.decode(key, input[i]); // encryption header
 			offset += 12;
 			length -= 12;
-			for (let i = offset, il = offset + length; i < il; ++i) input[i] = this.decode(key, input[i]); // decryption
+			for (let i = offset, il = offset + length; i < il; ++i) input[i] = Unzip.decode(key, input[i]); // decryption
 		}
 		let buffer;
 		switch (localFileHeader.compression) {
@@ -3281,7 +3260,7 @@ export class Unzip extends Zip {
 	 * @param {number} n
 	 * @return {number}
 	 */
-	decode(key, n) {
+	static decode(key, n) {
 		n ^= Unzip.getByte(/** @type {(Uint32Array)} */ (key));
 		Unzip.updateKeys(/** @type {(Uint32Array)} */ (key), n);
 		return n;
