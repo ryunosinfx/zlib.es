@@ -1,7 +1,6 @@
 // import { describe, before, it } from './staff/mocha-importer.es.js';
 import { Zlib } from '../../src/zlib.es.js';
 import { assertArray, stringToByteArray, base64toArray } from './staff/util.js';
-import * as z from '../../../bin/zlib.pretty.dev.js';
 describe('unzip', function () {
 	this.timeout(60000);
 
@@ -26,22 +25,12 @@ describe('unzip', function () {
 		const unzip = new Zlib.Unzip(decodedData, {
 			verify: true,
 		});
-		const unzip2 = new Z.Unzip(decodedData, {
-			verify: true,
-		});
 		const files = {};
-		console.log('decompression files A1 unzip', unzip, unzip2);
 		const filenames = unzip.getFilenames();
-		const filenames2 = unzip2.getFilenames();
-		console.log('decompression files A2 filenames', filenames, filenames2);
 
 		for (let i = 0, il = filenames.length; i < il; ++i) {
-			console.log('decompression files A3 i', i);
-			files[filenames[i] + 'OLD'] = unzip2.decompress(filenames[i]);
 			files[filenames[i]] = unzip.decompress(filenames[i]);
-			console.log('decompression files A4 filenames[i]', filenames[i]);
 		}
-		console.log('decompression files A5 files', files);
 
 		assertArray(files['hoge.txt'], new Uint8Array(stringToByteArray('hoge\x0a')), 'decompression files hoge');
 		assertArray(files['fuga.txt'], new Uint8Array(stringToByteArray('fuga\x0a')), 'decompression files fuga');

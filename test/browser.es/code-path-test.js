@@ -17,7 +17,6 @@ describe('code path', function () {
 	});
 
 	beforeEach(function () {
-		// console.log(sinon);
 		none = sinon.spy(Zlib.RawDeflate.prototype, 'makeNocompressBlock');
 		fixed = sinon.spy(Zlib.RawDeflate.prototype, 'makeFixedHuffmanBlock');
 		dynamic = sinon.spy(Zlib.RawDeflate.prototype, 'makeDynamicHuffmanBlock');
@@ -33,9 +32,6 @@ describe('code path', function () {
 		const data = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23];
 		const compressed = new Zlib.Deflate(data).compress();
 		const decompressed = new Zlib.Inflate(compressed).decompress();
-		// console.log('data', data);
-		// console.log('compressed', compressed);
-		// console.log('decompressed', decompressed);
 		assertArray(data, Array.prototype.slice.call(decompressed), 'undercomitted');
 		done(); // ここでテストが終了する
 	});

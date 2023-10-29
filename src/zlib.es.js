@@ -150,12 +150,10 @@ class BitStream {
 	 * @param {boolean=} reverse 逆順に書き込むならば true.
 	 */
 	writeBits(number, n, reverse) {
-		// console.log(' writeBits 0 number, n ', number, n);
 		let buffer = this.buffer;
 		let index = this.index;
 		let bitindex = this.bitindex;
 		let current = /** @type {number} current octet. */ buffer[index];
-		// console.log(' writeBits A number, n, current ', number, n, current, index, bitindex);
 		if (reverse && n > 1)
 			number = n > 8 ? this.rev32_(number) >> (32 - n) : BitStream.ReverseTable[number] >> (8 - n);
 		if (n + bitindex < 8) {
@@ -164,7 +162,6 @@ class BitStream {
 		} else {
 			for (let i = 0; i < n; ++i) {
 				current = (current << 1) | ((number >> (n - i - 1)) & 1); // Byte 境界を超えるとき
-				// console.log('writeBits current ', current, number, n, i);
 				if (++bitindex === 8) {
 					bitindex = 0; // next byte
 					buffer[index++] = BitStream.ReverseTable[current];
@@ -174,16 +171,6 @@ class BitStream {
 			}
 		}
 		buffer[index] = current;
-		// console.log('writeBits(number, n, reverse) ', {
-		// 	number,
-		// 	n,
-		// 	reverse,
-		// 	index,
-		// 	ti: this.index,
-		// 	a: BitStream.ReverseTable[current],
-		// 	current,
-		// 	buffer: JSON.stringify(buffer),
-		// });
 		this.buffer = buffer;
 		this.bitindex = bitindex;
 		this.index = index;
@@ -437,7 +424,6 @@ class Huffman {
 			if (length < minCodeLength) minCodeLength = length;
 		}
 		const size = 1 << maxCodeLength; //table size.
-		// console.log('buildHuffmanTable maxCodeLength', maxCodeLength, size, length, lengths);
 		const table = new Uint32Array(size); //huffman code table.
 		// ビット長の短い順からハフマン符号を割り当てる
 		for (let bitLength = 1, code = 0, skip = 2; bitLength <= maxCodeLength; ) {
@@ -656,7 +642,6 @@ class RawDeflate {
 	 * @return {!(Uint8Array)} 動的ハフマン符号ブロック byte array.
 	 */
 	makeDynamicHuffmanBlock(blockArray, isFinalBlock) {
-		// console.log('makeDynamicHuffmanBlock A0 blockArray:', blockArray);
 		const stream = new BitStream(new Uint8Array(this.output.buffer), this.op);
 		let hlit = /** @type {number} */ 0;
 		let hdist = /** @type {number} */ 0;
@@ -667,55 +652,33 @@ class RawDeflate {
 		const bfinal = isFinalBlock ? 1 : 0; // header
 		const transLengths = /** @type {Array} */ new Array(19);
 		const btype = RawDeflate.CompressionType.DYNAMIC;
-		// console.log('makeDynamicHuffmanBlock A1:', stream);
 		stream.writeBits(bfinal, 1, true);
-		// console.log('makeDynamicHuffmanBlock A2 bfinal:' + bfinal, stream);
 		stream.writeBits(btype, 2, true);
-		// console.log('makeDynamicHuffmanBlock A3 btype:' + btype, stream);
 		const data = this.lz77(blockArray);
-		// console.log('makeDynamicHuffmanBlock A30 data:', data);
-		// console.log('makeDynamicHuffmanBlock A31 this.freqsLitLen:', JSON.stringify(this.freqsLitLen));
 		const litLenLengths = this.getLengths_(this.freqsLitLen, 15); // リテラル・長さ, 距離のハフマン符号と符号長の算出
-		// console.log('makeDynamicHuffmanBlock A32 litLenLengths:', JSON.stringify(litLenLengths));
 		const litLenCodes = this.getCodesFromLengths_(litLenLengths);
-		// console.log('makeDynamicHuffmanBlock A33 litLenCodes:', litLenCodes);
 		const distLengths = this.getLengths_(this.freqsDist, 7);
-		// console.log('makeDynamicHuffmanBlock A34 distLengths:', JSON.stringify(distLengths));
 		const distCodes = this.getCodesFromLengths_(distLengths);
-		// console.log('makeDynamicHuffmanBlock A35 distCodes:', { distCodes, hlit, hdist });
 		for (hlit = 286; hlit > 257 && litLenLengths[hlit - 1] === 0; ) hlit--; // HLIT の決定
-		// console.log('makeDynamicHuffmanBlock A351 hlit:', hlit);
 		for (hdist = 30; hdist > 1 && distLengths[hdist - 1] === 0; ) hdist--; // HDIST の決定
-		// console.log('makeDynamicHuffmanBlock A352 hdist:', hdist);
 		/** @type {{
 		 *   codes: !(Uint32Array),
 		 *   freqs: !(Uint8Array)
 		 * }} */
 		const treeSymbols = this.getTreeSymbols_(hlit, litLenLengths, hdist, distLengths); // HCLEN
-		// console.log('makeDynamicHuffmanBlock A353 treeSymbols:', JSON.stringify(treeSymbols));
 		const treeLengths = this.getLengths_(treeSymbols.freqs, 7);
-		// console.log('makeDynamicHuffmanBlock A354 treeLengths:', JSON.stringify(treeLengths));
 		for (let i = 0; i < 19; i++) transLengths[i] = treeLengths[hclenOrder[i]];
-		// console.log('makeDynamicHuffmanBlock A355 transLengths:', JSON.stringify(transLengths));
 		for (hclen = 19; hclen > 4 && transLengths[hclen - 1] === 0; ) hclen--;
 		const treeCodes = this.getCodesFromLengths_(treeLengths);
-		// console.log('makeDynamicHuffmanBlock A356 treeLengths:', JSON.stringify(treeCodes));
 		stream.writeBits(hlit - 257, 5, true); // 出力
-		// console.log('makeDynamicHuffmanBlock A4 hlit:' + hlit, stream);
 		stream.writeBits(hdist - 1, 5, true);
-		// console.log('makeDynamicHuffmanBlock A5 hdist:' + hdist, stream);
 		stream.writeBits(hclen - 4, 4, true);
-		// console.log('makeDynamicHuffmanBlock A6 hclen:' + hclen, stream);
 		for (let i = 0; i < hclen; i++) stream.writeBits(transLengths[i], 3, true);
-		// console.log('makeDynamicHuffmanBlock A7:', stream);
 		const codes = treeSymbols.codes; // ツリーの出力
-		// console.log('makeDynamicHuffmanBlock A8 codes:', JSON.stringify(codes));
 		for (let i = 0, il = codes.length; i < il; i++) {
 			const code = codes[i];
-			// console.log('makeDynamicHuffmanBlock A80a code i:' + i, code, treeCodes[code], treeLengths[code]);
 			let bitlen = 0;
 			stream.writeBits(treeCodes[code], treeLengths[code], true);
-			// console.log('makeDynamicHuffmanBlock A80b code i:' + i, code, treeCodes[code], treeLengths[code]);
 			if (code >= 16) {
 				i++; // extra bits
 				switch (code) {
@@ -731,9 +694,7 @@ class RawDeflate {
 					default:
 						throw `invalid code: ${code}`;
 				}
-				// console.log('makeDynamicHuffmanBlock A81a code i:' + i, codes[i], bitlen);
 				stream.writeBits(codes[i], bitlen, true);
-				// console.log('makeDynamicHuffmanBlock A81b code i:' + i, codes[i], bitlen);
 			}
 		}
 		this.dynamicHuffman(data, [litLenCodes, litLenLengths], [distCodes, distLengths], stream);
@@ -912,7 +873,6 @@ class RawDeflate {
 	 * }} Tree-Transmit Symbols.
 	 */
 	getTreeSymbols_(hlit, litlenLengths, hdist, distLengths) {
-		// console.log('getTreeSymbols_', JSON.stringify({ hlit, litlenLengths, hdist, distLengths }));
 		const srcLen = hlit + hdist;
 		const src = new Uint32Array(srcLen),
 			result = new Uint32Array(286 + 30),
@@ -990,7 +950,6 @@ class RawDeflate {
 			length[heap.pop().index] = 1; // 非 0 の要素が一つだけだった場合は、そのシンボルに符号長 1 を割り当てて終了
 			return length;
 		}
-		// console.log('getLengths_ length:' + length);
 		for (let i = 0; i < heapHalfLen; ++i) {
 			nodes[i] = heap.pop(); // Reverse Package Merge Algorithm による Canonical Huffman Code の符号長決定
 			values[i] = nodes[i].value;
@@ -1353,7 +1312,6 @@ class Zip {
 	 * @param {Object=} opt_params options.
 	 */
 	addFile(input, opt_params = {}) {
-		console.log('addFile input.length:' + input.length, input);
 		// const filename = /** @type {string} */ opt_params.filename ? opt_params.filename : '';
 		let compressed = /** @type {boolean} */ void 0;
 		let crc32 = /** @type {number} */ 0;
@@ -1381,7 +1339,6 @@ class Zip {
 			crc32,
 			// filename,
 		});
-		console.log('addFile this.files:', JSON.stringify(this.files));
 	}
 	/**
 	 * @param {(Uint8Array)} password
@@ -1431,7 +1388,6 @@ class Zip {
 			}
 			if (opt.password !== void 0 || this.password !== void 0) {
 				const key = Zip.createEncryptionKey(opt.password || this.password); // encryption// init encryption
-				console.log('compress key:', key);
 				const len = file.buffer.length + 12; // add header
 				const buffer = new Uint8Array(len);
 				buffer.set(file.buffer, 12);
@@ -1449,7 +1405,6 @@ class Zip {
 		let op2 = localFileSize;
 		let op3 = op2 + centralDirectorySize;
 		for (const file of files) {
-			console.log('compress file:', file);
 			const opt = file.option; // ファイルの圧縮
 			const filenameLength = opt.filename ? opt.filename.length : 0;
 			const extraFieldLength = 0; // TODO
@@ -1628,7 +1583,6 @@ class LocalFileHeader {
 	parse() {
 		const input = this.input;
 		let ip = /** @type {number} */ this.offset;
-		console.log('parse A00 ip:', ip);
 		if (
 			input[ip++] !== Unzip.LocalFileHeaderSignature[0] ||
 			input[ip++] !== Unzip.LocalFileHeaderSignature[1] ||
@@ -1636,7 +1590,6 @@ class LocalFileHeader {
 			input[ip++] !== Unzip.LocalFileHeaderSignature[3]
 		)
 			throw new Error('invalid local file header signature'); // local file header signature
-		console.log('parse A01 ip:', ip);
 		this.needVersion = input[ip++] | (input[ip++] << 8); // version needed to extract
 		this.flags = input[ip++] | (input[ip++] << 8); // general purpose bit flag
 		this.compression = input[ip++] | (input[ip++] << 8); // compression method
@@ -1647,26 +1600,8 @@ class LocalFileHeader {
 		this.plainSize = (input[ip++] | (input[ip++] << 8) | (input[ip++] << 16) | (input[ip++] << 24)) >>> 0; // uncompressed size
 		this.fileNameLength = input[ip++] | (input[ip++] << 8); // file name length
 		this.extraFieldLength = input[ip++] | (input[ip++] << 8); // extra field length
-		console.log('parse A02 ip:', ip);
-		console.log('parse A1', {
-			needVersion: this.needVersion,
-			flags: this.flags,
-			compression: this.compression,
-			time: this.time,
-			date: this.date,
-			crc32: this.crc32,
-			compressedSize: this.compressedSize,
-			plainSize: this.plainSize,
-			fileNameLength: this.fileNameLength,
-			extraFieldLength: this.extraFieldLength,
-		});
 		this.filename = String.fromCharCode.apply(null, input.subarray(ip, (ip += this.fileNameLength))); // file name
 		this.extraField = input.subarray(ip, (ip += this.extraFieldLength)); // extra field
-		console.log('parse A2', {
-			filename: this.filename,
-			extraField: this.extraField,
-			offset: this.offset,
-		});
 		this.length = ip - this.offset;
 	}
 }
@@ -1752,7 +1687,6 @@ class Deflate {
 		const adler = Adler32.mkHash(this.input); // Adler-32 checksum
 		this.rawDeflate.op = pos;
 		const output2 = this.rawDeflate.compress();
-		// console.log('compless output2:', output2);
 		let pos2 = output2.length;
 		let output3 = new Uint8Array(output2.buffer); // subarray 分を元にもどす
 		if (output3.length <= pos2 + 4) {
@@ -2340,7 +2274,6 @@ class RawInflateStream {
 	static FixedLiteralLengthTable = (function () {
 		const lengths = new Uint8Array(288);
 		for (let i = 0, il = lengths.length; i < il; ++i) lengths[i] = i <= 143 ? 8 : i <= 255 ? 9 : i <= 279 ? 7 : 8;
-		// console.log('FixedLiteralLengthTable lengths:', lengths);
 		return Huffman.buildHuffmanTable(lengths);
 	})();
 	/**
@@ -2351,7 +2284,6 @@ class RawInflateStream {
 	static FixedDistanceTable = (function () {
 		const lengths = new Uint8Array(30);
 		for (let i = 0, il = lengths.length; i < il; ++i) lengths[i] = 5;
-		// console.log('FixedDistanceTable lengths:', lengths);
 		return Huffman.buildHuffmanTable(lengths);
 	})();
 	/**
@@ -2539,7 +2471,6 @@ class RawInflateStream {
 			codeLengths[RawInflateStream.Order[i]] = bits;
 		}
 		const h = hlit + hdist;
-		// console.log('parseDynamicHuffmanBlockImpl codeLengths:', codeLengths);
 		const codeLengthsTable = /** @type {!Array} code lengths table. */ Huffman.buildHuffmanTable(codeLengths); // decode length table
 		const lengthTable = /** @type {!(Uint8Array.<number>)} code length table. */ new Uint8Array(h);
 		for (let i = 0; i < h; ) {
@@ -2571,7 +2502,6 @@ class RawInflateStream {
 					break;
 			}
 		}
-		// console.log('parseDynamicHuffmanBlockImpl hlit:' + hlit, lengthTable.subarray(0, hlit));
 		// litlenLengths = new Uint8Array(hlit); // literal and length code
 		// distLengths = new Uint8Array(hdist); // distance code
 		this.litlenTable = Huffman.buildHuffmanTable(lengthTable.subarray(0, hlit));
@@ -2765,7 +2695,6 @@ export class RawInflate {
 	static FixedLiteralLengthTable = (function () {
 		const lengths = new Uint8Array(288);
 		for (let i = 0; i < 288; ++i) lengths[i] = i <= 143 ? 8 : i <= 255 ? 9 : i <= 279 ? 7 : 8;
-		// console.log('FixedLiteralLengthTable lengths:', lengths);
 		return Huffman.buildHuffmanTable(lengths);
 	})();
 	/**
@@ -2776,7 +2705,6 @@ export class RawInflate {
 	static FixedDistanceTable = (function () {
 		const lengths = new Uint8Array(30);
 		for (let i = 0; i < 30; ++i) lengths[i] = 5;
-		// console.log('FixedDistanceTable lengths:', lengths);
 		return Huffman.buildHuffmanTable(lengths);
 	})();
 	/**
@@ -2843,7 +2771,6 @@ export class RawInflate {
 		let hdr = this.readBits(3);
 		if (hdr & 0x1) this.bfinal = true; // BFINAL
 		hdr >>>= 1; // BTYPE
-		// console.log('parseBlock hdr:', hdr);
 		switch (hdr) {
 			case 0:
 				this.parseUncompressedBlock(); // uncompressed
@@ -2867,32 +2794,19 @@ export class RawInflate {
 		let bitsbuf = this.bitsbuf;
 		let bitsbuflen = this.bitsbuflen;
 		const input = this.input;
-		// console.log('readBits 0 ' + msg, input);
 		let ip = this.ip;
 		if (ip + ((length - bitsbuflen + 7) >> 3) >= input.length) throw new Error('input buffer is broken'); // input byte
-		// console.log('readBits 0 ' + msg + ' bitsbuflen < length:' + (bitsbuflen < length), { bitsbuflen, length });
 		while (bitsbuflen < length) {
 			const a = input[ip++];
 			bitsbuf |= a << bitsbuflen; // not enough buffer
-			// console.log('readBits A ' + msg, {
-			// 	bitsbuf,
-			// 	length,
-			// 	bitsbuflen,
-			// 	a,
-			// 	ip,
-			// 	'input[ip]': input[ip],
-			// 	'input[0]': input[0],
-			// });
 			bitsbuflen += 8;
 		}
 		const octet = bitsbuf & /* MASK */ ((1 << length) - 1); //input and output byte.// output byte
-		// console.log('readBits B ' + msg, { length, octet, bitsbuf, bitsbuflen, ip, input });
 		bitsbuf >>>= length;
 		bitsbuflen -= length;
 		this.bitsbuf = bitsbuf;
 		this.bitsbuflen = bitsbuflen;
 		this.ip = ip;
-		// console.log('readBits C ' + msg, { length, octet, bitsbuf, bitsbuflen, ip, input });
 		return octet;
 	}
 	/**
@@ -2919,16 +2833,6 @@ export class RawInflate {
 		this.bitsbuf = bitsbuf >> codeLength;
 		this.bitsbuflen = bitsbuflen - codeLength;
 		this.ip = ip;
-		// console.log('readCodeByTable', {
-		// 	ip,
-		// 	bitsbuflen: this.bitsbuflen,
-		// 	codeWithLength,
-		// 	bitsbuf,
-		// 	code: codeWithLength & 0xffff,
-		// 	input,
-		// 	maxCodeLength,
-		// 	table,
-		// });
 		return codeWithLength & 0xffff;
 	}
 	/**
@@ -2979,13 +2883,8 @@ export class RawInflate {
 	 * parse fixed huffman block.
 	 */
 	parseFixedHuffmanBlock() {
-		// console.log('parseFixedHuffmanBlock this.bufferType:', this.bufferType);
 		switch (this.bufferType) {
 			case RawInflate.BufferType.ADAPTIVE:
-				// console.log(
-				// 	'parseFixedHuffmanBlock RawInflate.FixedLiteralLengthTable:',
-				// 	RawInflate.FixedLiteralLengthTable
-				// );
 				this.decodeHuffmanAdaptive(RawInflate.FixedLiteralLengthTable, RawInflate.FixedDistanceTable);
 				break;
 			case RawInflate.BufferType.BLOCK:
@@ -2999,7 +2898,6 @@ export class RawInflate {
 	 * parse dynamic huffman block.
 	 */
 	parseDynamicHuffmanBlock() {
-		// console.log('parseDynamicHuffmanBlock this.input:', this.input);
 		const hlit =
 			/** @type {number} number of literal and length codes. */ this.readBits(5, 'parseDynamicHuffmanBlock') +
 			257;
@@ -3008,17 +2906,12 @@ export class RawInflate {
 		const codeLengths = /** @type {!(Uint8Array.<number>)} code lengths. */ new Uint8Array(RawInflate.Order.length);
 		let prev = /** @type {number} */ 0;
 		let repeat = /** @type {number} */ 0;
-		// console.log('parseDynamicHuffmanBlock hclen:', hclen);
-		// console.log('parseDynamicHuffmanBlock RawInflate.Order:', RawInflate.Order);
 		for (let i = 0; i < hclen; ++i) codeLengths[RawInflate.Order[i]] = this.readBits(3, 'parseDynamicHuffmanBlock'); // decode code lengths
-		// console.log('parseDynamicHuffmanBlock codeLengths:', codeLengths);
 		const codeLengthsTable = Huffman.buildHuffmanTable(codeLengths); //code lengths table. decode length table
 		const len = hlit + hdist;
 		const lengthTable = new Uint8Array(len); //code length table.
-		// console.log('parseDynamicHuffmanBlock codeLengthsTable:', codeLengthsTable, len);
 		for (let i = 0; i < len; ) {
 			const code = this.readCodeByTable(codeLengthsTable);
-			// console.log('parseDynamicHuffmanBlock code:', code);
 			switch (code) {
 				case 16:
 					repeat = 3 + this.readBits(2, 'parseDynamicHuffmanBlock');
@@ -3040,13 +2933,10 @@ export class RawInflate {
 					break;
 			}
 		}
-		// console.log('parseDynamicHuffmanBlock hlit:', hlit);
-		// console.log('parseDynamicHuffmanBlock lengthTable:', lengthTable);
 		const litlenTable = Huffman.buildHuffmanTable(lengthTable.subarray(0, hlit)); //literal and length code table.
 		const distTable = Huffman.buildHuffmanTable(lengthTable.subarray(hlit)); //distance code table.
 		switch (this.bufferType) {
 			case RawInflate.BufferType.ADAPTIVE:
-				// console.log('parseDynamicHuffmanBlock litlenTable:', litlenTable);
 				this.decodeHuffmanAdaptive(litlenTable, distTable);
 				break;
 			case RawInflate.BufferType.BLOCK:
@@ -3116,19 +3006,15 @@ export class RawInflate {
 		const lengthExtraTable = RawInflate.LengthExtraTable;
 		const distCodeTable = RawInflate.DistCodeTable;
 		const distExtraTable = RawInflate.DistExtraTable;
-		// console.log('0 decodeHuffmanAdaptive litlen:' + litlen, litlen);
 		while ((code = this.readCodeByTable(litlen)) !== 256) {
-			// console.log('1 decodeHuffmanAdaptive code:' + code, code);
 			if (code < 256) {
 				if (op >= olength) {
 					output = this.expandBufferAdaptive(); // literal
-					// console.log('B decodeHuffmanAdaptive code:' + code, olength, op);
 					olength = output.length;
 				}
 				output[op++] = code;
 				continue;
 			}
-			// console.log('A decodeHuffmanAdaptive code:' + code, olength, op);
 			const ti = code - 257; // length code
 			let codeLength = lengthCodeTable[ti]; //huffman code length.
 			if (lengthExtraTable[ti] > 0) codeLength += this.readBits(lengthExtraTable[ti]);
@@ -3139,15 +3025,12 @@ export class RawInflate {
 				output = this.expandBufferAdaptive(); // lz77 decode
 				olength = output.length;
 			}
-			// console.log('X decodeHuffmanAdaptive codeLength:' + codeLength, op);
 			while (codeLength--) output[op] = output[op++ - codeDist];
 		}
-		// console.log('Y decodeHuffmanAdaptive this.bitsbuflen:' + this.bitsbuflen, this.ip);
 		while (this.bitsbuflen >= 8) {
 			this.bitsbuflen -= 8;
 			this.ip--;
 		}
-		// console.log('Z decodeHuffmanAdaptive op:' + op, this.ip);
 		this.op = op;
 	}
 	/**
@@ -3172,7 +3055,6 @@ export class RawInflate {
 	 * @return {!(Uint8Array)} output buffer pointer.
 	 */
 	expandBufferAdaptive(opt_param = {}) {
-		// console.log('expandBufferAdaptive MAX_FIREFOX_SIZE:', MAX_FIREFOX_SIZE);
 		let ratio = (this.input.length / this.ip + 1) | 0; //expantion ratio.
 		let newSize; //new output buffer size.
 		const input = this.input;
@@ -3187,7 +3069,6 @@ export class RawInflate {
 			newSize = maxInflateSize < currentLen ? currentLen + maxInflateSize : currentLen << 1;
 		} else newSize = currentLen * ratio;
 		const newSizeAdaptiveMax = MAX_FIREFOX_SIZE > newSize ? newSize : MAX_FIREFOX_SIZE;
-		// console.log('expandBufferAdaptive currentLen,newSize:', currentLen, newSize, newSizeAdaptiveMax);
 		const buffer = new Uint8Array(newSizeAdaptiveMax); // buffer expantion //store buffer.
 		buffer.set(output);
 		this.output = buffer;
@@ -3208,7 +3089,6 @@ export class RawInflate {
 		for (let i = RawInflate.MaxBackwardLength, il = this.op; i < il; ++i) buffer[pos++] = output[i]; // current buffer
 		this.blocks = [];
 		this.buffer = buffer;
-		// console.log('concatBufferBlock:', buffer);
 		return this.buffer;
 	}
 	/**
@@ -3223,7 +3103,6 @@ export class RawInflate {
 			buffer.set(this.output.subarray(0, op));
 		} else buffer = this.output.subarray(0, op);
 		this.buffer = buffer;
-		// console.log('concatBufferDynamic op:' + op, buffer, this.output);
 		return this.buffer;
 	}
 }
@@ -3287,7 +3166,6 @@ export class Unzip extends Zip {
 	}
 	parseEndOfCentralDirectoryRecord() {
 		const input = this.input;
-		console.log('parseEndOfCentralDirectoryRecord input:', input, this.eocdrOffset);
 		if (!this.eocdrOffset) this.searchEndOfCentralDirectoryRecord();
 		let ip = this.eocdrOffset;
 		if (
@@ -3299,7 +3177,6 @@ export class Unzip extends Zip {
 			throw new Error('invalid signature'); // signature
 		}
 		this.numberOfThisDisk = input[ip++] | (input[ip++] << 8); // number of this disk
-		console.log('parseEndOfCentralDirectoryRecord this.numberOfThisDisk:', this.numberOfThisDisk);
 		this.startDisk = input[ip++] | (input[ip++] << 8); // number of the disk with the start of the central directory
 		this.totalEntriesThisDisk = input[ip++] | (input[ip++] << 8); // total number of entries in the central directory on this disk
 		this.totalEntries = input[ip++] | (input[ip++] << 8); // total number of entries in the central directory
@@ -3311,14 +3188,11 @@ export class Unzip extends Zip {
 		this.comment = input.subarray(ip, ip + this.commentLength); // .ZIP file comment
 	}
 	parseFileHeader() {
-		console.log('parseFileHeader this.fileHeaderList:', this.fileHeaderList);
 		if (this.fileHeaderList) return;
-		console.log('parseFileHeader this.centralDirectoryOffset:', this.centralDirectoryOffset);
 		if (this.centralDirectoryOffset === void 0) this.parseEndOfCentralDirectoryRecord();
 		let ip = this.centralDirectoryOffset;
 		const filelist = [];
 		const filetable = {};
-		console.log('parseFileHeader this.totalEntries:', this.totalEntries);
 		for (let i = 0, il = this.totalEntries; i < il; ++i) {
 			const fileHeader = new FileHeader(this.input, ip);
 			ip += fileHeader.length;
@@ -3339,52 +3213,33 @@ export class Unzip extends Zip {
 		const fileHeaderList = this.fileHeaderList;
 		if (!fileHeaderList) this.parseFileHeader();
 		if (fileHeaderList[index] === void 0) throw new Error('wrong index');
-		console.log('getFileData A1 index:' + index, JSON.stringify(fileHeaderList));
 		let offset = fileHeaderList[index].relativeOffset;
-		console.log('getFileData A2 offset:' + offset, JSON.stringify(this.input));
 		const localFileHeader = new LocalFileHeader(this.input, offset);
 		// localFileHeader.parse();
-		console.log('getFileData A30 localFileHeader.length:' + localFileHeader.length);
 		offset += localFileHeader.length;
-		console.log('getFileData A3 offset:' + offset);
 		let length = localFileHeader.compressedSize;
 		if ((localFileHeader.flags & LocalFileHeader.Flags.ENCRYPT) !== 0) {
-			console.log('getFileData A30 localFileHeader.flags:' + localFileHeader.flags);
 			if (!(opt_params.password || this.password)) throw new Error('please set password'); // decryption
 			const key = Unzip.createDecryptionKey(opt_params.password || this.password);
-			console.log('getFileData A31 key:' + key, opt_params['password'] || this.password);
 			for (let i = offset, il = offset + 12; i < il; ++i) this.decode(key, input[i]); // encryption header
 			offset += 12;
 			length -= 12;
 			for (let i = offset, il = offset + length; i < il; ++i) input[i] = this.decode(key, input[i]); // decryption
 		}
-		console.log('getFileData A32 input:', JSON.stringify(input));
 		let buffer;
-		console.log('getFileData A4 offset:' + offset + '/length:' + length);
 		switch (localFileHeader.compression) {
 			case Unzip.CompressionMethod.STORE:
-				console.log('getFileData A40 offset:' + offset + '/length:' + length);
 				buffer = input.subarray(offset, offset + length);
 				break;
 			case Unzip.CompressionMethod.DEFLATE:
-				console.log(
-					'getFileData A41 offset:' +
-						offset +
-						'/length:' +
-						length +
-						'/localFileHeader.plainSize:' +
-						localFileHeader.plainSize
-				);
 				buffer = new RawInflate(input, {
 					index: offset,
 					bufferSize: localFileHeader.plainSize,
 				}).decompress();
-				console.log('getFileData A410 buffer:' + buffer);
 				break;
 			default:
 				throw new Error('unknown compression type');
 		}
-		console.log('getFileData A5 buffer:', JSON.stringify(buffer));
 		if (this.verify) {
 			const crc32 = CRC32.calc(buffer);
 			if (localFileHeader.crc32 !== crc32)
@@ -3399,10 +3254,8 @@ export class Unzip extends Zip {
 	 */
 	getFilenames() {
 		const filenameList = [];
-		console.log('getFilenames');
 		if (!this.fileHeaderList) this.parseFileHeader();
 		const fileHeaderList = this.fileHeaderList;
-		console.log('getFilenames fileHeaderList:', fileHeaderList);
 		for (let i = 0, il = fileHeaderList.length; i < il; ++i) filenameList[i] = fileHeaderList[i].filename;
 		return filenameList;
 	}

@@ -57,7 +57,6 @@ export const base64toArray = function (str) {
 // array assertion
 //-----------------------------------------------------------------------------
 export const assertArray = function (expected, actuals, msg = '') {
-	console.log('assertArray ' + msg + ' expected:%o,actuals:%o', expected, actuals);
 	if (expected.length !== actuals.length)
 		console.warn('assertArray expected.length === actuals.length', msg, expected.length, actuals.length);
 	chai.assert.isTrue(expected.length === actuals.length);
@@ -90,13 +89,10 @@ export const makeRandomData = function (size, typedarray) {
 	const seed = +new Date();
 	const mt = new MersenneTwister(seed);
 
-	console.log('makeRandomData seed:', seed);
-
 	// make random data
 	for (let i = 0, il = data.length; i < il; ++i) {
 		data[i] = mt.nextInt(256);
 	}
-	console.log('makeRandomData data:', data);
 	return data;
 };
 
@@ -121,8 +117,6 @@ export const makeRandomSequentialData = function (size, typedarray, opt_seed) {
 	const data = new (typedarray ? Uint8Array : Array)(size);
 	const seed = opt_seed || +new Date();
 	const mt = new MersenneTwister(seed);
-
-	console.log('seed:', seed);
 
 	// make random data
 	for (let i = 0, il = data.length; i < il; ) {

@@ -539,13 +539,11 @@
 			return (this.buffer = buffer);
 		};
 		Zlib.BitStream.prototype.writeBits = function (number, n, reverse) {
-			// console.log('OLD writeBits 0 number, n ', number, n);
 			var buffer = this.buffer;
 			var index = this.index;
 			var bitindex = this.bitindex;
 			var current = buffer[index];
 			var i;
-			// console.log('OLD writeBits A number, n, current ', number, n, current, index, bitindex);
 			function rev32_(n) {
 				return (
 					(Zlib.BitStream.ReverseTable[n & 255] << 24) |
@@ -563,7 +561,6 @@
 			} else {
 				for (i = 0; i < n; ++i) {
 					current = (current << 1) | ((number >> (n - i - 1)) & 1);
-					// console.log('OLD writeBits current ', current, number, n, i);
 					if (++bitindex === 8) {
 						bitindex = 0;
 						buffer[index++] = Zlib.BitStream.ReverseTable[current];
@@ -575,16 +572,6 @@
 				}
 			}
 			buffer[index] = current;
-			// console.log('OLD writeBits(number, n, reverse) ', {
-			// 	number,
-			// 	n,
-			// 	reverse,
-			// 	index,
-			// 	ti: this.index,
-			// 	a: Zlib.BitStream.ReverseTable[current],
-			// 	current,
-			// 	buffer: JSON.stringify(buffer),
-			// });
 			this.buffer = buffer;
 			this.bitindex = bitindex;
 			this.index = index;
@@ -1036,53 +1023,31 @@
 			var il;
 			bfinal = isFinalBlock ? 1 : 0;
 			btype = Zlib.RawDeflate.CompressionType.DYNAMIC;
-			// console.log('makeDynamicHuffmanBlock A1:', stream);
 			stream.writeBits(bfinal, 1, true);
-			// console.log('makeDynamicHuffmanBlock A2 bfinal:' + bfinal, stream);
 			stream.writeBits(btype, 2, true);
-			// console.log('makeDynamicHuffmanBlock A3 btype:' + btype, stream);
 			data = this.lz77(blockArray);
-			// console.log('makeDynamicHuffmanBlock A30 data:', data);
-			// console.log('makeDynamicHuffmanBlock A31 this.freqsLitLen:', JSON.stringify(this.freqsLitLen));
 			litLenLengths = this.getLengths_(this.freqsLitLen, 15);
-			// console.log('makeDynamicHuffmanBlock A32 litLenLengths:', JSON.stringify(litLenLengths));
 			litLenCodes = this.getCodesFromLengths_(litLenLengths);
-			// console.log('makeDynamicHuffmanBlock A33 litLenCodes:', litLenCodes);
 			distLengths = this.getLengths_(this.freqsDist, 7);
-			// console.log('makeDynamicHuffmanBlock A34 distLengths:', JSON.stringify(distLengths));
 			distCodes = this.getCodesFromLengths_(distLengths);
-			// console.log('makeDynamicHuffmanBlock A35 distCodes:', { distCodes, hlit, hdist });
 			for (hlit = 286; hlit > 257 && litLenLengths[hlit - 1] === 0; hlit--) {}
-			// console.log('makeDynamicHuffmanBlock A351 hlit:', hlit);
 			for (hdist = 30; hdist > 1 && distLengths[hdist - 1] === 0; hdist--) {}
-			// console.log('makeDynamicHuffmanBlock A352 hdist:', hdist);
 			treeSymbols = this.getTreeSymbols_(hlit, litLenLengths, hdist, distLengths);
-			// console.log('makeDynamicHuffmanBlock A353 treeSymbols:', JSON.stringify(treeSymbols));
 			treeLengths = this.getLengths_(treeSymbols.freqs, 7);
-			// console.log('makeDynamicHuffmanBlock A354 treeLengths:', JSON.stringify(treeLengths));
 			for (i = 0; i < 19; i++) {
 				transLengths[i] = treeLengths[hclenOrder[i]];
 			}
-			// console.log('makeDynamicHuffmanBlock A355 transLengths:', JSON.stringify(transLengths));
 			for (hclen = 19; hclen > 4 && transLengths[hclen - 1] === 0; hclen--) {}
 			treeCodes = this.getCodesFromLengths_(treeLengths);
-			// console.log('makeDynamicHuffmanBlock A356 treeLengths:', JSON.stringify(treeCodes));
 			stream.writeBits(hlit - 257, 5, true);
-			// console.log('makeDynamicHuffmanBlock A4 hlit:' + hlit, stream);
 			stream.writeBits(hdist - 1, 5, true);
-			// console.log('makeDynamicHuffmanBlock A5 hdist:' + hdist, stream);
 			stream.writeBits(hclen - 4, 4, true);
-			// console.log('makeDynamicHuffmanBlock A6 hclen:' + hclen, stream);
 			for (i = 0; i < hclen; i++) {
 				stream.writeBits(transLengths[i], 3, true);
 			}
-			// console.log('makeDynamicHuffmanBlock A7:', stream);
-			// console.log('makeDynamicHuffmanBlock A8 codes:', JSON.stringify(treeSymbols.codes));
 			for (i = 0, il = treeSymbols.codes.length; i < il; i++) {
 				code = treeSymbols.codes[i];
-				// console.log('makeDynamicHuffmanBlock A80a code i:' + i, code, treeCodes[code], treeLengths[code]);
 				stream.writeBits(treeCodes[code], treeLengths[code], true);
-				// console.log('makeDynamicHuffmanBlock A80b code i:' + i, code, treeCodes[code], treeLengths[code]);
 				if (code >= 16) {
 					i++;
 					switch (code) {
@@ -1098,9 +1063,7 @@
 						default:
 							throw 'invalid code: ' + code;
 					}
-					// console.log('makeDynamicHuffmanBlock A81a code i:' + i, treeSymbols.codes[i], bitlen);
 					stream.writeBits(treeSymbols.codes[i], bitlen, true);
-					// console.log('makeDynamicHuffmanBlock A81b code i:' + i, treeSymbols.codes[i], bitlen);
 				}
 			}
 			this.dynamicHuffman(data, [litLenCodes, litLenLengths], [distCodes, distLengths], stream);
@@ -1520,7 +1483,6 @@
 			return new Zlib.RawDeflate.Lz77Match(matchMax, position - currentMatch);
 		};
 		Zlib.RawDeflate.prototype.getTreeSymbols_ = function (hlit, litlenLengths, hdist, distLengths) {
-			// console.log('OLD getTreeSymbols_', JSON.stringify({ hlit, litlenLengths, hdist, distLengths }));
 			var src = new (USE_TYPEDARRAY ? Uint32Array : Array)(hlit + hdist),
 				i,
 				j,
@@ -1620,7 +1582,6 @@
 				length[heap.pop().index] = 1;
 				return length;
 			}
-			// console.log('OLD getLengths_ length:' + length);
 			for (i = 0, il = heap.length / 2; i < il; ++i) {
 				nodes[i] = heap.pop();
 				values[i] = nodes[i].value;
@@ -2434,7 +2395,6 @@
 					this.resize = opt_params['resize'];
 				}
 			}
-			// console.log('OLD parseFixedHuffmanBlock this.bufferType:', this.bufferType);
 			switch (this.bufferType) {
 				case Zlib.RawInflate.BufferType.BLOCK:
 					this.op = Zlib.RawInflate.MaxBackwardLength;
@@ -2448,10 +2408,6 @@
 					this.expandBuffer = this.expandBufferAdaptive;
 					this.concatBuffer = this.concatBufferDynamic;
 					this.decodeHuffman = this.decodeHuffmanAdaptive;
-					// console.log(
-					// 	'OLD parseFixedHuffmanBlock RawInflate.FixedLiteralLengthTable:',
-					// 	Zlib.RawInflate.FixedLiteralLengthTable
-					// );
 					break;
 				default:
 					throw new Error('invalid inflate mode');
@@ -2517,7 +2473,6 @@
 				this.bfinal = true;
 			}
 			hdr >>>= 1;
-			// console.log('OLD parseBlock hdr:', hdr);
 			switch (hdr) {
 				case 0:
 					this.parseUncompressedBlock();
@@ -2764,9 +2719,7 @@
 			var ti;
 			var codeDist;
 			var codeLength;
-			// console.log('OLD 0 decodeHuffmanAdaptive litlen:' + litlen, litlen);
 			while ((code = this.readCodeByTable(litlen)) !== 256) {
-				// console.log('OLD 1 decodeHuffmanAdaptive code:' + code, code);
 				if (code < 256) {
 					if (op >= olength) {
 						output = this.expandBuffer();
@@ -2775,7 +2728,6 @@
 					output[op++] = code;
 					continue;
 				}
-				// console.log('OLD A decodeHuffmanAdaptive code:' + code, olength, op);
 				ti = code - 257;
 				codeLength = Zlib.RawInflate.LengthCodeTable[ti];
 				if (Zlib.RawInflate.LengthExtraTable[ti] > 0) {
@@ -2790,17 +2742,14 @@
 					output = this.expandBuffer();
 					olength = output.length;
 				}
-				// console.log('OLD X decodeHuffmanAdaptive codeLength:' + codeLength, op);
 				while (codeLength--) {
 					output[op] = output[op++ - codeDist];
 				}
 			}
-			// console.log('OLD Y decodeHuffmanAdaptive this.bitsbuflen:' + this.bitsbuflen, this.ip);
 			while (this.bitsbuflen >= 8) {
 				this.bitsbuflen -= 8;
 				this.ip--;
 			}
-			// console.log('OLD Z decodeHuffmanAdaptive op:' + op, this.ip);
 			this.op = op;
 		};
 		Zlib.RawInflate.prototype.expandBuffer = function (opt_param) {
@@ -2887,7 +2836,6 @@
 			}
 			this.blocks = [];
 			this.buffer = buffer;
-			// console.log('OLD concatBufferBlock:', buffer);
 			return this.buffer;
 		};
 		Zlib.RawInflate.prototype.concatBufferDynamic = function () {
@@ -3172,7 +3120,6 @@
 		Zlib.Zip.LocalFileHeaderSignature = [80, 75, 3, 4];
 		Zlib.Zip.CentralDirectorySignature = [80, 75, 5, 6];
 		Zlib.Zip.prototype.addFile = function (input, opt_params) {
-			console.log('OLD addFile input.length:' + input.length, input);
 			opt_params = opt_params || {};
 			var filename = '' || opt_params['filename'];
 			var compressed;
@@ -3205,7 +3152,6 @@
 				size: size,
 				crc32: crc32,
 			});
-			console.log('OLD addFile this.files:', JSON.stringify(this.files));
 		};
 		Zlib.Zip.prototype.setPassword = function (password) {
 			this.password = password;
@@ -3261,7 +3207,6 @@
 				}
 				if (file.option['password'] !== void 0 || this.password !== void 0) {
 					key = this.createEncryptionKey(file.option['password'] || this.password);
-					console.log('OLD compress key:', key);
 					buffer = file.buffer;
 					if (USE_TYPEDARRAY) {
 						tmp = new Uint8Array(buffer.length + 12);
@@ -3290,7 +3235,6 @@
 			op3 = op2 + centralDirectorySize;
 			for (i = 0, il = files.length; i < il; ++i) {
 				file = files[i];
-				console.log('OLD compress file:', file);
 				filenameLength = file.option['filename'] ? file.option['filename'].length : 0;
 				extraFieldLength = 0;
 				commentLength = file.option['comment'] ? file.option['comment'].length : 0;
@@ -3585,7 +3529,6 @@
 		Zlib.Unzip.LocalFileHeader.prototype.parse = function () {
 			var input = this.input;
 			var ip = this.offset;
-			console.log('OLD parse A00 ip:', ip);
 			if (
 				input[ip++] !== Zlib.Unzip.LocalFileHeaderSignature[0] ||
 				input[ip++] !== Zlib.Unzip.LocalFileHeaderSignature[1] ||
@@ -3594,7 +3537,6 @@
 			) {
 				throw new Error('invalid local file header signature');
 			}
-			console.log('OLD parse A01 ip:', ip);
 			this.needVersion = input[ip++] | (input[ip++] << 8);
 			this.flags = input[ip++] | (input[ip++] << 8);
 			this.compression = input[ip++] | (input[ip++] << 8);
@@ -3605,19 +3547,6 @@
 			this.plainSize = (input[ip++] | (input[ip++] << 8) | (input[ip++] << 16) | (input[ip++] << 24)) >>> 0;
 			this.fileNameLength = input[ip++] | (input[ip++] << 8);
 			this.extraFieldLength = input[ip++] | (input[ip++] << 8);
-			console.log('OLD parse A02 ip:', ip);
-			console.log('OLD parse A1', {
-				needVersion: this.needVersion,
-				flags: this.flags,
-				compression: this.compression,
-				time: this.time,
-				date: this.date,
-				crc32: this.crc32,
-				compressedSize: this.compressedSize,
-				plainSize: this.plainSize,
-				fileNameLength: this.fileNameLength,
-				extraFieldLength: this.extraFieldLength,
-			});
 			this.filename = String.fromCharCode.apply(
 				null,
 				USE_TYPEDARRAY
@@ -3627,11 +3556,6 @@
 			this.extraField = USE_TYPEDARRAY
 				? input.subarray(ip, (ip += this.extraFieldLength))
 				: input.slice(ip, (ip += this.extraFieldLength));
-			console.log('OLD parse A2', {
-				filename: this.filename,
-				extraField: this.extraField,
-				offset: this.offset,
-			});
 			this.length = ip - this.offset;
 		};
 		Zlib.Unzip.prototype.searchEndOfCentralDirectoryRecord = function () {
@@ -3653,7 +3577,6 @@
 		Zlib.Unzip.prototype.parseEndOfCentralDirectoryRecord = function () {
 			var input = this.input;
 			var ip;
-			console.log('OLD parseEndOfCentralDirectoryRecord input:', input, this.eocdrOffset);
 			if (!this.eocdrOffset) {
 				this.searchEndOfCentralDirectoryRecord();
 			}
@@ -3667,7 +3590,6 @@
 				throw new Error('invalid signature');
 			}
 			this.numberOfThisDisk = input[ip++] | (input[ip++] << 8);
-			console.log('OLD parseEndOfCentralDirectoryRecord this.numberOfThisDisk:', this.numberOfThisDisk);
 			this.startDisk = input[ip++] | (input[ip++] << 8);
 			this.totalEntriesThisDisk = input[ip++] | (input[ip++] << 8);
 			this.totalEntries = input[ip++] | (input[ip++] << 8);
@@ -3687,16 +3609,13 @@
 			var fileHeader;
 			var i;
 			var il;
-			console.log('OLD parseFileHeader this.fileHeaderList:', this.fileHeaderList);
 			if (this.fileHeaderList) {
 				return;
 			}
-			console.log('OLD parseFileHeader this.centralDirectoryOffset:', this.centralDirectoryOffset);
 			if (this.centralDirectoryOffset === void 0) {
 				this.parseEndOfCentralDirectoryRecord();
 			}
 			ip = this.centralDirectoryOffset;
-			console.log('OLD parseFileHeader this.totalEntries:', this.totalEntries);
 			for (i = 0, il = this.totalEntries; i < il; ++i) {
 				fileHeader = new Zlib.Unzip.FileHeader(this.input, ip);
 				fileHeader.parse();
@@ -3728,22 +3647,16 @@
 			if (fileHeaderList[index] === void 0) {
 				throw new Error('wrong index');
 			}
-			console.log('OLD getFileData A1 index:' + index, JSON.stringify(fileHeaderList));
 			offset = fileHeaderList[index].relativeOffset;
-			console.log('OLD getFileData A2 offset:' + offset, JSON.stringify(input));
 			localFileHeader = new Zlib.Unzip.LocalFileHeader(this.input, offset);
 			localFileHeader.parse();
-			console.log('OLD getFileData A30 localFileHeader.length:' + localFileHeader.length);
 			offset += localFileHeader.length;
-			console.log('OLD getFileData A3 offset:' + offset);
 			length = localFileHeader.compressedSize;
 			if ((localFileHeader.flags & Zlib.Unzip.LocalFileHeader.Flags.ENCRYPT) !== 0) {
-				console.log('OLD getFileData A30 localFileHeader.flags:' + localFileHeader.flags);
 				if (!(opt_params['password'] || this.password)) {
 					throw new Error('please set password');
 				}
 				key = this.createDecryptionKey(opt_params['password'] || this.password);
-				console.log('OLD getFileData A31 key:' + key, opt_params['password'] || this.password);
 				for (i = offset, il = offset + 12; i < il; ++i) {
 					this.decode(key, input[i]);
 				}
@@ -3753,34 +3666,21 @@
 					input[i] = this.decode(key, input[i]);
 				}
 			}
-			console.log('OLD getFileData A32 input:', JSON.stringify(input));
-			console.log('OLD getFileData A4 offset:' + offset + '/length:' + length);
 			switch (localFileHeader.compression) {
 				case Zlib.Unzip.CompressionMethod.STORE:
-					console.log('OLD getFileData A40 offset:' + offset + '/length:' + length);
 					buffer = USE_TYPEDARRAY
 						? input.subarray(offset, offset + length)
 						: input.slice(offset, offset + length);
 					break;
 				case Zlib.Unzip.CompressionMethod.DEFLATE:
-					console.log(
-						'OLD getFileData A41 offset:' +
-							offset +
-							'/length:' +
-							length +
-							'/localFileHeader.plainSize:' +
-							localFileHeader.plainSize
-					);
 					buffer = new Zlib.RawInflate(input, {
 						index: offset,
 						bufferSize: localFileHeader.plainSize,
 					}).decompress();
-					console.log('OLD getFileData A410 buffer:' + buffer);
 					break;
 				default:
 					throw new Error('unknown compression type');
 			}
-			console.log('OLD getFileData A5 buffer:', JSON.stringify(buffer));
 			if (this.verify) {
 				crc32 = Zlib.CRC32.calc(buffer);
 				if (localFileHeader.crc32 !== crc32) {
