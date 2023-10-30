@@ -29,6 +29,46 @@ class ZU {
 	static u32 = (n) => new Uint32Array(n);
 	static isN = (n) => typeof n === 'number';
 }
+class Huffman {
+	/**
+	 * build huffman table from length list.
+	 * @param {!(Uint8Array)} lengths length list.
+	 * @return {!Array} huffman table.
+	 */
+	static bT(lengths) {
+		const listSize = /** @type {number} length list size. */ lengths.length;
+		let maxCLen = /** @type {number} max code length for table size. */ 0,
+			minCLen = /** @type {number} min code length for table size. */ Number.POSITIVE_INFINITY;
+		for (const l of lengths) {
+			if (l > maxCLen) maxCLen = l; // Math.max は遅いので最長の値は for-loop で取得する
+			if (l < minCLen) minCLen = l;
+		}
+		const size = 1 << maxCLen, //table size.
+			t = ZU.u32(size); //huffman code table.
+		// ビット長の短い順からハフマン符号を割り当てる
+		for (let bitLen = 1, c = 0, skip = 2; bitLen <= maxCLen; ) {
+			for (let i = 0; i < listSize; ++i)
+				if (lengths[i] === bitLen) {
+					let reversed = 0; //reversed code.// ビットオーダーが逆になるためビット長分並びを反転する
+					for (let rtemp = c, j = 0; j < bitLen; ++j) {
+						reversed = (reversed << 1) | (rtemp & 1);
+						rtemp >>= 1; //reverse temp.
+					}
+					// 最大ビット長をもとにテーブルを作るため、
+					// 最大ビット長以外では 0 / 1 どちらでも良い箇所ができる
+					// そのどちらでも良い場所は同じ値で埋めることで
+					// 本来のビット長以上のビット数取得しても問題が起こらないようにする
+					const v = (bitLen << 16) | i;
+					for (let j = reversed; j < size; j += skip) t[j] = v;
+					++c;
+				}
+			++bitLen; //bit length.// 次のビット長へ
+			c <<= 1; //huffman code.
+			skip <<= 1; //サイズが 2^maxlength 個のテーブルを埋めるためのスキップ長.
+		}
+		return [t, maxCLen, minCLen];
+	}
+}
 /**
  * Compression Method
  * @enum {number}
@@ -92,6 +132,26 @@ export class Zlib {
 	static DistExtraTable = ZU.u8([
 		0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13,
 	]);
+	/**
+	 * fixed huffman length code table
+	 * @const
+	 * @type {!Array}
+	 */
+	static FixedLiteralLengthTable = (function () {
+		const ls = ZU.u8(288);
+		for (let i = 0; i < 288; ++i) ls[i] = i <= 143 ? 8 : i <= 255 ? 9 : i <= 279 ? 7 : 8;
+		return Huffman.bT(ls);
+	})();
+	/**
+	 * fixed huffman distance code table
+	 * @const
+	 * @type {!Array}
+	 */
+	static FixedDistanceTable = (function () {
+		const ls = ZU.u8(30);
+		for (let i = 0; i < 30; ++i) ls[i] = 5;
+		return Huffman.bT(ls);
+	})();
 }
 class FileHeader {
 	/**
@@ -186,7 +246,7 @@ class Adler32 {
  * @param {!(Uint8Array)=} buffer output buffer.
  * @param {number=} bufferPosition start buffer pointer.
  */
-class BitStream {
+class BS {
 	/**
 	 * デフォルトブロックサイズ.
 	 * @const
@@ -198,7 +258,7 @@ class BitStream {
 		z.index = /** @type {number} buffer index. */ ZU.isN(bufferPosition) ? bufferPosition : 0;
 		z.bitindex = /** @type {number} bit index. */ 0;
 		/** @type {!(Uint8Array)} bit-stream output buffer. */
-		z.buffer = buffer instanceof Uint8Array ? buffer : ZU.u8(BitStream.DefaultBlockSize);
+		z.buffer = buffer instanceof Uint8Array ? buffer : ZU.u8(BS.DefaultBlockSize);
 		// 入力された index が足りなかったら拡張するが、倍にしてもダメなら不正とする
 		if (z.buffer.length * 2 <= z.index) ZU.Err('invalid index');
 		else if (z.buffer.length <= z.index) z.expandBuffer();
@@ -208,9 +268,9 @@ class BitStream {
 	 * @return {!(Uint8Array)} new buffer.
 	 */
 	expandBuffer() {
-		const oldbuf = /** @type {!(Uint8Array)} old buffer. */ this.buffer,
-			buf = /** @type {!(Uint8Array)} new buffer. */ ZU.u8(oldbuf.length << 1);
-		buf.set(oldbuf); // copy buffer
+		const ob = /** @type {!(Uint8Array)} old buffer. */ this.buffer,
+			buf = /** @type {!(Uint8Array)} new buffer. */ ZU.u8(ob.length << 1);
+		buf.set(ob); // copy buffer
 		return (this.buffer = buf);
 	}
 	/**
@@ -219,29 +279,28 @@ class BitStream {
 	 * @param {number} n 書き込むビット数.
 	 * @param {boolean=} reverse 逆順に書き込むならば true.
 	 */
-	writeBits(number, n, reverse) {
+	wB(number, n, reverse) {
 		const z = this;
 		let buf = z.buffer,
 			idx = z.index,
 			bIdx = z.bitindex,
-			current = /** @type {number} current octet. */ buf[idx];
-		if (reverse && n > 1)
-			number = n > 8 ? BitStream.rev32_(number) >> (32 - n) : BitStream.ReverseTable[number] >> (8 - n);
+			cu = /** @type {number} current octet. */ buf[idx];
+		if (reverse && n > 1) number = n > 8 ? BS.rev32_(number) >> (32 - n) : BS.ReverseTable[number] >> (8 - n);
 		if (n + bIdx < 8) {
-			current = (current << n) | number; // Byte 境界を超えないとき
+			cu = (cu << n) | number; // Byte 境界を超えないとき
 			bIdx += n;
 		} else {
 			for (let i = 0; i < n; ++i) {
-				current = (current << 1) | ((number >> (n - i - 1)) & 1); // Byte 境界を超えるとき
+				cu = (cu << 1) | ((number >> (n - i - 1)) & 1); // Byte 境界を超えるとき
 				if (++bIdx === 8) {
 					bIdx = 0; // next byte
-					buf[idx++] = BitStream.ReverseTable[current];
-					current = 0;
+					buf[idx++] = BS.ReverseTable[cu];
+					cu = 0;
 					if (idx === buf.length) buf = z.expandBuffer(); // expand
 				}
 			}
 		}
-		buf[idx] = current;
+		buf[idx] = cu;
 		z.buffer = buf;
 		z.bitindex = bIdx;
 		z.index = idx;
@@ -253,7 +312,7 @@ class BitStream {
 	 * @private
 	 */
 	static rev32_(n) {
-		const RT = BitStream.ReverseTable;
+		const RT = BS.ReverseTable;
 		return (
 			(RT[n & 0xff] << 24) | (RT[(n >>> 8) & 0xff] << 16) | (RT[(n >>> 16) & 0xff] << 8) | RT[(n >>> 24) & 0xff]
 		);
@@ -267,7 +326,7 @@ class BitStream {
 		let i = this.index;
 		if (this.bitindex > 0) {
 			buf[i] <<= 8 - this.bitindex; // bitindex が 0 の時は余分に index が進んでいる状態
-			buf[i] = BitStream.ReverseTable[buf[i]];
+			buf[i] = BS.ReverseTable[buf[i]];
 			i++;
 		}
 		return buf.subarray(0, i); // array truncation;
@@ -292,7 +351,7 @@ class BitStream {
 	 * @const
 	 * @type {!(Uint8Array.<number>)}
 	 */
-	static ReverseTable = (() => BitStream.buildReverseTable())();
+	static ReverseTable = (() => BS.buildReverseTable())();
 }
 /**
  * @fileoverview CRC32 実装.
@@ -315,20 +374,21 @@ class CRC32 {
 	 * @return {number} CRC32.
 	 */
 	static update(data, crc, pos, length) {
-		const t = CRC32.Table,
-			il = ZU.isN(length) ? length : data.length;
+		const d = data,
+			t = CRC32.Table,
+			il = ZU.isN(length) ? length : d.length;
 		let i = ZU.isN(pos) ? pos : (pos = 0);
 		crc ^= 0xffffffff;
-		for (i = il & 7; i--; ++pos) crc = (crc >>> 8) ^ t[(crc ^ data[pos]) & 0xff]; // loop unrolling for performance
+		for (i = il & 7; i--; ++pos) crc = (crc >>> 8) ^ t[(crc ^ d[pos]) & 0xff]; // loop unrolling for performance
 		for (i = il >> 3; i--; pos += 8) {
-			crc = (crc >>> 8) ^ t[(crc ^ data[pos]) & 0xff];
-			crc = (crc >>> 8) ^ t[(crc ^ data[pos + 1]) & 0xff];
-			crc = (crc >>> 8) ^ t[(crc ^ data[pos + 2]) & 0xff];
-			crc = (crc >>> 8) ^ t[(crc ^ data[pos + 3]) & 0xff];
-			crc = (crc >>> 8) ^ t[(crc ^ data[pos + 4]) & 0xff];
-			crc = (crc >>> 8) ^ t[(crc ^ data[pos + 5]) & 0xff];
-			crc = (crc >>> 8) ^ t[(crc ^ data[pos + 6]) & 0xff];
-			crc = (crc >>> 8) ^ t[(crc ^ data[pos + 7]) & 0xff];
+			crc = (crc >>> 8) ^ t[(crc ^ d[pos]) & 0xff];
+			crc = (crc >>> 8) ^ t[(crc ^ d[pos + 1]) & 0xff];
+			crc = (crc >>> 8) ^ t[(crc ^ d[pos + 2]) & 0xff];
+			crc = (crc >>> 8) ^ t[(crc ^ d[pos + 3]) & 0xff];
+			crc = (crc >>> 8) ^ t[(crc ^ d[pos + 4]) & 0xff];
+			crc = (crc >>> 8) ^ t[(crc ^ d[pos + 5]) & 0xff];
+			crc = (crc >>> 8) ^ t[(crc ^ d[pos + 6]) & 0xff];
+			crc = (crc >>> 8) ^ t[(crc ^ d[pos + 7]) & 0xff];
 		}
 		return (crc ^ 0xffffffff) >>> 0;
 	}
@@ -424,19 +484,19 @@ class Heap {
 	push(index, value) {
 		const z = this,
 			h = z.buffer; // ルートノードにたどり着くまで入れ替えを試みる
-		let current = z.length;
+		let cu = z.length;
 		h[z.length++] = value;
 		h[z.length++] = index;
-		while (current > 0) {
-			const pt = Heap.getParent(current); // 親ノードと比較して親の方が小さければ入れ替える
-			if (h[current] > h[pt]) {
-				const swap1 = h[current];
-				h[current] = h[pt];
+		while (cu > 0) {
+			const pt = Heap.getParent(cu); // 親ノードと比較して親の方が小さければ入れ替える
+			if (h[cu] > h[pt]) {
+				const swap1 = h[cu];
+				h[cu] = h[pt];
 				h[pt] = swap1;
-				const swap2 = h[current + 1];
-				h[current + 1] = h[pt + 1];
+				const swap2 = h[cu + 1];
+				h[cu + 1] = h[pt + 1];
 				h[pt + 1] = swap2;
-				current = pt;
+				cu = pt;
 			} else break; // 入れ替えが必要なくなったらそこで抜ける
 		}
 		return z.length;
@@ -470,46 +530,6 @@ class Heap {
 			pt = child;
 		}
 		return { index: idx, value: v, length: z.length };
-	}
-}
-class Huffman {
-	/**
-	 * build huffman table from length list.
-	 * @param {!(Uint8Array)} lengths length list.
-	 * @return {!Array} huffman table.
-	 */
-	static buildHuffmanTable(lengths) {
-		const listSize = /** @type {number} length list size. */ lengths.length;
-		let maxCLen = /** @type {number} max code length for table size. */ 0,
-			minCLen = /** @type {number} min code length for table size. */ Number.POSITIVE_INFINITY;
-		for (const l of lengths) {
-			if (l > maxCLen) maxCLen = l; // Math.max は遅いので最長の値は for-loop で取得する
-			if (l < minCLen) minCLen = l;
-		}
-		const size = 1 << maxCLen, //table size.
-			t = ZU.u32(size); //huffman code table.
-		// ビット長の短い順からハフマン符号を割り当てる
-		for (let bitLen = 1, c = 0, skip = 2; bitLen <= maxCLen; ) {
-			for (let i = 0; i < listSize; ++i)
-				if (lengths[i] === bitLen) {
-					let reversed = 0; //reversed code.// ビットオーダーが逆になるためビット長分並びを反転する
-					for (let rtemp = c, j = 0; j < bitLen; ++j) {
-						reversed = (reversed << 1) | (rtemp & 1);
-						rtemp >>= 1; //reverse temp.
-					}
-					// 最大ビット長をもとにテーブルを作るため、
-					// 最大ビット長以外では 0 / 1 どちらでも良い箇所ができる
-					// そのどちらでも良い場所は同じ値で埋めることで
-					// 本来のビット長以上のビット数取得しても問題が起こらないようにする
-					const v = (bitLen << 16) | i;
-					for (let j = reversed; j < size; j += skip) t[j] = v;
-					++c;
-				}
-			++bitLen; //bit length.// 次のビット長へ
-			c <<= 1; //huffman code.
-			skip <<= 1; //サイズが 2^maxlength 個のテーブルを埋めるためのスキップ長.
-		}
-		return [t, maxCLen, minCLen];
 	}
 }
 /**
@@ -644,9 +664,9 @@ class RawDeflate {
 	 */
 	makeNocompressBlock(blockArray, isFinalBlock) {
 		const z = this;
-		let op = z.op,
+		let q = z.op,
 			bL = z.output.buffer.byteLength;
-		const tg = op + blockArray.length + 5;
+		const tg = q + blockArray.length + 5;
 		while (bL <= tg) bL = bL << 1; // expand buffer
 		const o = ZU.u8(bL),
 			bfinal = isFinalBlock ? 1 : 0, // header
@@ -654,15 +674,15 @@ class RawDeflate {
 			l = blockArray.length, // length
 			nL = (~l + 0x10000) & 0xffff;
 		o.set(z.output);
-		o[op++] = bfinal | (btype << 1);
-		o[op++] = l & 0xff;
-		o[op++] = (l >>> 8) & 0xff;
-		o[op++] = nL & 0xff;
-		o[op++] = (nL >>> 8) & 0xff;
-		o.set(blockArray, op); // copy buffer
-		op += blockArray.length;
-		const sa = o.subarray(0, op);
-		z.op = op;
+		o[q++] = bfinal | (btype << 1);
+		o[q++] = l & 0xff;
+		o[q++] = (l >>> 8) & 0xff;
+		o[q++] = nL & 0xff;
+		o[q++] = (nL >>> 8) & 0xff;
+		o.set(blockArray, q); // copy buffer
+		q += blockArray.length;
+		const sa = o.subarray(0, q);
+		z.op = q;
 		z.output = sa;
 		return sa;
 	}
@@ -673,11 +693,11 @@ class RawDeflate {
 	 * @return {!(Uint8Array)} 固定ハフマン符号化ブロック byte array.
 	 */
 	makeFixedHuffmanBlock(blockArray, isFinalBlock) {
-		const s = new BitStream(ZU.u8(this.output.buffer), this.op),
+		const s = new BS(ZU.u8(this.output.buffer), this.op),
 			bfinal = isFinalBlock ? 1 : 0, // header
 			btype = RawDeflate.CompressionType.FIXED;
-		s.writeBits(bfinal, 1, true);
-		s.writeBits(btype, 2, true);
+		s.wB(bfinal, 1, true);
+		s.wB(btype, 2, true);
 		RawDeflate.fixedHuffman(this.lz77(blockArray), s);
 		return s.finish();
 	}
@@ -692,15 +712,15 @@ class RawDeflate {
 			hdist = /** @type {number} */ 0,
 			hclen = /** @type {number} */ 0;
 		const z = this,
-			s = new BitStream(ZU.u8(z.output.buffer), z.op),
+			s = new BS(ZU.u8(z.output.buffer), z.op),
 			hclenOrder = /** @const @type {Array.<number>} */ [
 				16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15,
 			],
 			bfinal = isFinalBlock ? 1 : 0, // header
 			transLens = /** @type {Array} */ ZU.a(19),
 			btype = RawDeflate.CompressionType.DYNAMIC;
-		s.writeBits(bfinal, 1, true);
-		s.writeBits(btype, 2, true);
+		s.wB(bfinal, 1, true);
+		s.wB(btype, 2, true);
 		const data = z.lz77(blockArray),
 			litLenLens = RawDeflate.getLengths_(z.freqsLitLen, 15), // リテラル・長さ, 距離のハフマン符号と符号長の算出
 			litLenCs = RawDeflate.getCodesFromLengths_(litLenLens),
@@ -717,15 +737,15 @@ class RawDeflate {
 		for (let i = 0; i < 19; i++) transLens[i] = treeLengths[hclenOrder[i]];
 		for (hclen = 19; hclen > 4 && transLens[hclen - 1] === 0; ) hclen--;
 		const treeCodes = RawDeflate.getCodesFromLengths_(treeLengths);
-		s.writeBits(hlit - 257, 5, true); // 出力
-		s.writeBits(hdist - 1, 5, true);
-		s.writeBits(hclen - 4, 4, true);
-		for (let i = 0; i < hclen; i++) s.writeBits(transLens[i], 3, true);
+		s.wB(hlit - 257, 5, true); // 出力
+		s.wB(hdist - 1, 5, true);
+		s.wB(hclen - 4, 4, true);
+		for (let i = 0; i < hclen; i++) s.wB(transLens[i], 3, true);
 		const cs = treeSymbols.codes; // ツリーの出力
 		for (let i = 0, il = cs.length; i < il; i++) {
 			const c = cs[i];
 			let bitlen = 0;
-			s.writeBits(treeCodes[c], treeLengths[c], true);
+			s.wB(treeCodes[c], treeLengths[c], true);
 			if (c >= 16) {
 				i++; // extra bits
 				switch (c) {
@@ -741,7 +761,7 @@ class RawDeflate {
 					default:
 						ZU.Err(`invalid code: ${c}`);
 				}
-				s.writeBits(cs[i], bitlen, true);
+				s.wB(cs[i], bitlen, true);
 			}
 		}
 		RawDeflate.dynamicHuffman(data, [litLenCs, litLenLens], [distCs, distLens], s);
@@ -750,8 +770,8 @@ class RawDeflate {
 	/**
 	 * 動的ハフマン符号化(カスタムハフマンテーブル)
 	 * @param {!(Uint16Array)} dataArray LZ77 符号化済み byte array.
-	 * @param {!BitStream} stream 書き込み用ビットストリーム.
-	 * @return {!BitStream} ハフマン符号化済みビットストリームオブジェクト.
+	 * @param {!BS} stream 書き込み用ビットストリーム.
+	 * @return {!BS} ハフマン符号化済みビットストリームオブジェクト.
 	 */
 	static dynamicHuffman(dataArray, litLen, dist, stream) {
 		const d = dataArray,
@@ -762,12 +782,12 @@ class RawDeflate {
 			distLens = dist[1];
 		for (let i = 0, il = d.length; i < il; ++i) {
 			const literal = d[i]; // 符号を BitStream に書き込んでいく
-			s.writeBits(litLenCs[literal], litLenLen[literal], true); // literal or length
+			s.wB(litLenCs[literal], litLenLen[literal], true); // literal or length
 			if (literal > 256) {
-				s.writeBits(d[++i], d[++i], true); // 長さ・距離符号// length extra
+				s.wB(d[++i], d[++i], true); // 長さ・距離符号// length extra
 				const c = d[++i]; // distance
-				s.writeBits(distCs[c], distLens[c], true);
-				s.writeBits(d[++i], d[++i], true); // distance extra
+				s.wB(distCs[c], distLens[c], true);
+				s.wB(d[++i], d[++i], true); // distance extra
 			} else if (literal === 256) break; // 終端
 		}
 		return s;
@@ -775,19 +795,19 @@ class RawDeflate {
 	/**
 	 * 固定ハフマン符号化
 	 * @param {!(Uint16Array)} dataArray LZ77 符号化済み byte array.
-	 * @param {!BitStream} stream 書き込み用ビットストリーム.
-	 * @return {!BitStream} ハフマン符号化済みビットストリームオブジェクト.
+	 * @param {!BS} stream 書き込み用ビットストリーム.
+	 * @return {!BS} ハフマン符号化済みビットストリームオブジェクト.
 	 */
 	static fixedHuffman(dataArray, stream) {
 		const d = dataArray,
 			s = stream;
 		for (let i = 0, il = d.length; i < il; i++) {
 			const literal = d[i]; // 符号を BitStream に書き込んでいく
-			BitStream.prototype.writeBits.apply(s, RawDeflate.FixedHuffmanTable[literal]); // 符号の書き込み
+			BS.prototype.wB.apply(s, RawDeflate.FixedHuffmanTable[literal]); // 符号の書き込み
 			if (literal > 0x100) {
-				s.writeBits(d[++i], d[++i], true); // 長さ・距離符号 // length extra
-				s.writeBits(d[++i], 5); // distance
-				s.writeBits(d[++i], d[++i], true); // distance extra
+				s.wB(d[++i], d[++i], true); // 長さ・距離符号 // length extra
+				s.wB(d[++i], 5); // distance
+				s.wB(d[++i], d[++i], true); // distance extra
 			} else if (literal === 0x100) break; // 終端
 		}
 		return s;
@@ -798,9 +818,10 @@ class RawDeflate {
 	 * @return {!(Uint16Array)} LZ77 符号化した配列.
 	 */
 	lz77(dataArray) {
-		const t = /** @type {Object.<number, Array.<number>>} chained-hash-table */ {},
+		const d = dataArray,
+			t = /** @type {Object.<number, Array.<number>>} chained-hash-table */ {},
 			wS = /** @const @type {number} */ RawDeflate.WindowSize,
-			lz77buf = /** @type {!(Uint16Array)} lz77 buffer */ ZU.u16(dataArray.length * 2),
+			lz77buf = /** @type {!(Uint16Array)} lz77 buffer */ ZU.u16(d.length * 2),
 			/** @type {!(Uint32Array)} */
 			fqLitLen = ZU.u32(286),
 			/** @type {!(Uint32Array)} */
@@ -809,7 +830,7 @@ class RawDeflate {
 			lazy = this.lazy;
 		/** @type {Lz77Match} previous longest match */
 		let prevM,
-			ip = /** @type {number} lz77 output buffer pointer */ 0,
+			q = /** @type {number} lz77 output buffer pointer */ 0,
 			skipL = /** @type {number} lz77 skip length */ 0;
 		fqLitLen[256] = 1; // EOB の最低出現回数は 1
 		/**
@@ -818,21 +839,21 @@ class RawDeflate {
 		 * @param {!number} o スキップ開始位置(相対指定).
 		 * @private
 		 */
-		function writeMatch(m, o) {
+		function wM(m, o) {
 			/** @type {Array.<number>} */
-			const lz77Array = Lz77Match.toLz77Array(m.length, m.backwardDistance);
-			for (let i = 0, il = lz77Array.length; i < il; ++i) lz77buf[ip++] = lz77Array[i];
-			fqLitLen[lz77Array[0]]++;
-			fqDist[lz77Array[3]]++;
+			const A = Lz77Match.toLz77Array(m.length, m.backwardDistance);
+			for (let i = 0, il = A.length; i < il; ++i) lz77buf[q++] = A[i];
+			fqLitLen[A[0]]++;
+			fqDist[A[3]]++;
 			skipL = m.length + o - 1;
 			prevM = null;
 		}
 		// LZ77 符号化
-		for (let p = 0, l = dataArray.length; p < l; ++p) {
+		for (let p = 0, l = d.length; p < l; ++p) {
 			let mKey = 0; //chained-hash-table key
 			for (let i = 0, il = RawDeflate.Lz77MinLength; i < il; ++i) {
 				if (p + i === l) break;
-				mKey = (mKey << 8) | dataArray[p + i]; // ハッシュキーの作成
+				mKey = (mKey << 8) | d[p + i]; // ハッシュキーの作成
 			}
 			if (t[mKey] === void 0) t[mKey] = []; // テーブルが未定義だったら作成する
 			const mList = t[mKey];
@@ -842,38 +863,38 @@ class RawDeflate {
 			}
 			while (mList.length > 0 && p - mList[0] > wS) mList.shift(); // マッチテーブルの更新 (最大戻り距離を超えているものを削除する)
 			if (p + RawDeflate.Lz77MinLength >= l) {
-				if (prevM) writeMatch(prevM, -1); // データ末尾でマッチしようがない場合はそのまま流しこむ
+				if (prevM) wM(prevM, -1); // データ末尾でマッチしようがない場合はそのまま流しこむ
 				for (let i = 0, il = l - p; i < il; ++i) {
-					const t = dataArray[p + i];
-					lz77buf[ip++] = t;
+					const t = d[p + i];
+					lz77buf[q++] = t;
 					++fqLitLen[t];
 				}
 				break;
 			}
 			if (mList.length > 0) {
-				const longestM = RawDeflate.searchLongestMatch_(dataArray, p, mList); // マッチ候補から最長のものを探す
+				const longestM = RawDeflate.searchLongestMatch_(d, p, mList); // マッチ候補から最長のものを探す
 				if (prevM) {
 					if (prevM.length < longestM.length) {
-						const t = dataArray[p - 1]; // 現在のマッチの方が前回のマッチよりも長い// write previous literal
-						lz77buf[ip++] = t;
+						const t = d[p - 1]; // 現在のマッチの方が前回のマッチよりも長い// write previous literal
+						lz77buf[q++] = t;
 						++fqLitLen[t];
-						writeMatch(longestM, 0); // write current match
-					} else writeMatch(prevM, -1); // write previous match
+						wM(longestM, 0); // write current match
+					} else wM(prevM, -1); // write previous match
 				} else if (longestM.length < lazy) prevM = longestM;
-				else writeMatch(longestM, 0);
-			} else if (prevM) writeMatch(prevM, -1); // 前回マッチしていて今回マッチがなかったら前回のを採用
+				else wM(longestM, 0);
+			} else if (prevM) wM(prevM, -1); // 前回マッチしていて今回マッチがなかったら前回のを採用
 			else {
-				const t = dataArray[p];
-				lz77buf[ip++] = t;
+				const t = d[p];
+				lz77buf[q++] = t;
 				++fqLitLen[t];
 			}
 			mList.push(p); // マッチテーブルに現在の位置を保存
 		}
-		lz77buf[ip++] = 256; // 終端処理
+		lz77buf[q++] = 256; // 終端処理
 		fqLitLen[256]++;
 		this.freqsLitLen = fqLitLen;
 		this.freqsDist = fqDist;
-		return /** @type {!(Uint16Array.<number>)} */ lz77buf.subarray(0, ip);
+		return /** @type {!(Uint16Array.<number>)} */ lz77buf.subarray(0, q);
 	}
 	/**
 	 * マッチした候補の中から最長一致を探す
@@ -886,28 +907,30 @@ class RawDeflate {
 	static searchLongestMatch_(data, position, matchList) {
 		let currentM,
 			mMax = 0;
-		const dl = data.length;
+		const d = data,
+			dl = d.length,
+			p = position;
 		permatch: for (let i = 0, l = matchList.length; i < l; i++) {
 			const m = matchList[l - i - 1]; // 候補を後ろから 1 つずつ絞り込んでゆく
-			let mLen = RawDeflate.Lz77MinLength;
+			let mL = RawDeflate.Lz77MinLength;
 			if (mMax > RawDeflate.Lz77MinLength) {
 				for (let j = mMax; j > RawDeflate.Lz77MinLength; j--)
-					if (data[m + j - 1] !== data[position + j - 1]) continue permatch; // 前回までの最長一致を末尾から一致検索する
-				mLen = mMax;
+					if (d[m + j - 1] !== d[p + j - 1]) continue permatch; // 前回までの最長一致を末尾から一致検索する
+				mL = mMax;
 			}
 			while (
-				mLen < RawDeflate.Lz77MaxLength && // 最長一致探索
-				position + mLen < dl &&
-				data[m + mLen] === data[position + mLen]
+				mL < RawDeflate.Lz77MaxLength && // 最長一致探索
+				p + mL < dl &&
+				d[m + mL] === d[p + mL]
 			)
-				++mLen;
-			if (mLen > mMax) {
+				++mL;
+			if (mL > mMax) {
 				currentM = m; // マッチ長が同じ場合は後方を優先
-				mMax = mLen;
+				mMax = mL;
 			}
-			if (mLen === RawDeflate.Lz77MaxLength) break; // 最長が確定したら後の処理は省略
+			if (mL === RawDeflate.Lz77MaxLength) break; // 最長が確定したら後の処理は省略
 		}
-		return new Lz77Match(mMax, position - currentM);
+		return new Lz77Match(mMax, p - currentM);
 	}
 	/**
 	 * Tree-Transmit Symbols の算出
@@ -925,7 +948,7 @@ class RawDeflate {
 		const srcLen = hlit + hdist,
 			src = ZU.u32(srcLen),
 			r = ZU.u32(286 + 30),
-			freqs = ZU.u8(19);
+			fqs = ZU.u8(19);
 		let j = 0,
 			nR = 0; // 符号化
 		for (let i = 0; i < hlit; i++) src[j++] = litlenLengths[i];
@@ -938,7 +961,7 @@ class RawDeflate {
 				if (rL < 3)
 					while (rL-- > 0) {
 						r[nR++] = 0; // 0 の繰り返しが 3 回未満ならばそのまま
-						freqs[0]++;
+						fqs[0]++;
 					}
 				else
 					while (rL > 0) {
@@ -947,22 +970,22 @@ class RawDeflate {
 						if (rpt <= 10) {
 							r[nR++] = 17; // 3-10 回 -> 17
 							r[nR++] = rpt - 3;
-							freqs[17]++;
+							fqs[17]++;
 						} else {
 							r[nR++] = 18; // 11-138 回 -> 18
 							r[nR++] = rpt - 11;
-							freqs[18]++;
+							fqs[18]++;
 						}
 						rL -= rpt;
 					}
 			} else {
 				r[nR++] = srcI;
-				freqs[srcI]++;
+				fqs[srcI]++;
 				rL--;
 				if (rL < 3)
 					while (rL-- > 0) {
 						r[nR++] = srcI; // 繰り返し回数が3回未満ならばランレングス符号は要らない
-						freqs[srcI]++;
+						fqs[srcI]++;
 					}
 				else
 					while (rL > 0) {
@@ -970,14 +993,14 @@ class RawDeflate {
 						if (rpt > rL - 3 && rpt < rL) rpt = rL - 3;
 						r[nR++] = 16;
 						r[nR++] = rpt - 3;
-						freqs[16]++;
+						fqs[16]++;
 						rL -= rpt;
 					}
 			}
 		}
 		return {
 			codes: r.subarray(0, nR),
-			freqs,
+			freqs: fqs,
 		};
 	}
 	/**
@@ -992,31 +1015,35 @@ class RawDeflate {
 			h = /** @type {Heap} */ new Heap(2 * RawDeflate.HUFMAX),
 			l = /** @type {!(Uint8Array)} */ ZU.u8(nSymbols);
 		for (let i = 0; i < nSymbols; ++i) if (freqs[i] > 0) h.push(i, freqs[i]); // ヒープの構築
-		const heapHalfLen = h.length / 2,
-			ns = ZU.a(heapHalfLen),
-			vs = ZU.u32(heapHalfLen);
+		const hHLen = h.length / 2,
+			ns = ZU.a(hHLen),
+			vs = ZU.u32(hHLen);
 		if (ns.length === 1) {
 			l[h.pop().index] = 1; // 非 0 の要素が一つだけだった場合は、そのシンボルに符号長 1 を割り当てて終了
 			return l;
 		}
-		for (let i = 0; i < heapHalfLen; ++i) {
+		for (let i = 0; i < hHLen; ++i) {
 			ns[i] = h.pop(); // Reverse Package Merge Algorithm による Canonical Huffman Code の符号長決定
 			vs[i] = ns[i].value;
 		}
-		const codeLength = RawDeflate.reversePackageMerge_(vs, vs.length, limit);
-		for (let i = 0, il = ns.length; i < il; ++i) l[ns[i].index] = codeLength[i];
+		const cLen = RawDeflate.reversePackageMerge_(vs, vs.length, limit);
+		for (let i = 0, il = ns.length; i < il; ++i) l[ns[i].index] = cLen[i];
 		return l;
 	}
 	/**
 	 * @param {number} j
 	 */
-	static takePackage(j, type, currentPosition, symbols, codeLength) {
-		const x = /** @type {number} */ type[j][currentPosition[j]];
-		if (x === symbols) {
-			RawDeflate.takePackage(j + 1, type, currentPosition, symbols, codeLength);
-			RawDeflate.takePackage(j + 1, type, currentPosition, symbols, codeLength);
-		} else --codeLength[x];
-		++currentPosition[j];
+	static takePkg(j, type, currentPosition, symbols, codeLength) {
+		const p = currentPosition,
+			t = type,
+			s = symbols,
+			c = codeLength,
+			x = /** @type {number} */ t[j][p[j]];
+		if (x === s) {
+			RawDeflate.takePkg(j + 1, t, p, s, c);
+			RawDeflate.takePkg(j + 1, t, p, s, c);
+		} else --c[x];
+		++p[j];
 	}
 	/**
 	 * Reverse Package Merge Algorithm.
@@ -1027,15 +1054,15 @@ class RawDeflate {
 	 */
 	static reversePackageMerge_(freqs, symbols, limit) {
 		const limitM1 = limit - 1,
-			minCost = /** @type {!(Uint16Array)} */ ZU.u16(limit),
+			mC = /** @type {!(Uint16Array)} */ ZU.u16(limit), //minCost
 			flg = /** @type {!(Uint8Array)} */ ZU.u8(limit),
 			cLen = /** @type {!(Uint8Array)} */ ZU.u8(symbols),
 			v = /** @type {Array} */ ZU.a(limit),
 			type = /** @type {Array} */ ZU.a(limit),
-			currentP = /** @type {Array.<number>} */ ZU.a(limit),
+			cuP = /** @type {Array.<number>} */ ZU.a(limit),
 			half = /** @type {number} */ 1 << limitM1;
 		let excess = /** @type {number} */ (1 << limit) - symbols;
-		minCost[limitM1] = symbols;
+		mC[limitM1] = symbols;
 		for (let j = 0; j < limit; ++j) {
 			if (excess < half) flg[j] = 0;
 			else {
@@ -1043,35 +1070,35 @@ class RawDeflate {
 				excess -= half;
 			}
 			excess <<= 1;
-			minCost[limit - 2 - j] = ((minCost[limitM1 - j] / 2) | 0) + symbols;
+			mC[limit - 2 - j] = ((mC[limitM1 - j] / 2) | 0) + symbols;
 		}
-		minCost[0] = flg[0];
-		v[0] = ZU.a(minCost[0]);
-		type[0] = ZU.a(minCost[0]);
+		mC[0] = flg[0];
+		v[0] = ZU.a(mC[0]);
+		type[0] = ZU.a(mC[0]);
 		for (let j = 1; j < limit; ++j) {
-			if (minCost[j] > 2 * minCost[j - 1] + flg[j]) minCost[j] = 2 * minCost[j - 1] + flg[j];
-			v[j] = ZU.a(minCost[j]);
-			type[j] = ZU.a(minCost[j]);
+			if (mC[j] > 2 * mC[j - 1] + flg[j]) mC[j] = 2 * mC[j - 1] + flg[j];
+			v[j] = ZU.a(mC[j]);
+			type[j] = ZU.a(mC[j]);
 		}
 		for (let i = 0; i < symbols; ++i) cLen[i] = limit;
-		const tml = minCost[limitM1];
+		const tml = mC[limitM1];
 		for (let t = 0; t < tml; ++t) {
 			v[limitM1][t] = freqs[t];
 			type[limitM1][t] = t;
 		}
-		for (let i = 0; i < limit; ++i) currentP[i] = 0;
+		for (let i = 0; i < limit; ++i) cuP[i] = 0;
 		if (flg[limitM1] === 1) {
 			--cLen[0];
-			++currentP[limitM1];
+			++cuP[limitM1];
 		}
 		for (let j = limit - 2; j >= 0; --j) {
 			let i = 0,
-				next = currentP[j + 1];
+				next = cuP[j + 1];
 			const vJ0 = v[j],
 				vJ1 = v[j + 1],
 				typeJ = type[j],
-				minCostJ = minCost[j];
-			for (let t = 0; t < minCostJ; t++) {
+				mCJ = mC[j];
+			for (let t = 0; t < mCJ; t++) {
 				const w = vJ1[next] + vJ1[next + 1];
 				if (w > freqs[i]) {
 					vJ0[t] = w;
@@ -1083,8 +1110,8 @@ class RawDeflate {
 					++i;
 				}
 			}
-			currentP[j] = 0;
-			if (flg[j] === 1) RawDeflate.takePackage(j, type, currentP, symbols, cLen);
+			cuP[j] = 0;
+			if (flg[j] === 1) RawDeflate.takePkg(j, type, cuP, symbols, cLen);
 		}
 		return cLen;
 	}
@@ -1099,20 +1126,20 @@ class RawDeflate {
 		const il = lengths.length,
 			cs = ZU.u16(il),
 			cnt = [],
-			startCode = [];
+			sC = []; //startCode
 		let c = 0;
-		for (const len of lengths) cnt[len] = (cnt[len] | 0) + 1; // Count the codes of each length.
+		for (const l of lengths) cnt[l] = (cnt[l] | 0) + 1; // Count the codes of each length.
 		for (let i = 1; i <= RawDeflate.MaxCodeLength; i++) {
-			startCode[i] = c; // Determine the starting code for each length block.
+			sC[i] = c; // Determine the starting code for each length block.
 			c += cnt[i] | 0;
 			c <<= 1;
 		}
 		for (let i = 0; i < il; i++) {
-			const len = lengths[i]; // Determine the code for each symbol. Mirrored, of course.
-			let c = startCode[len];
-			startCode[len] += 1;
+			const l = lengths[i]; // Determine the code for each symbol. Mirrored, of course.
+			let c = sC[l];
+			sC[l] += 1;
 			cs[i] = 0;
-			for (let j = 0; j < len; j++) {
+			for (let j = 0; j < l; j++) {
 				cs[i] = (cs[i] << 1) | (c & 1);
 				c >>>= 1;
 			}
@@ -1416,12 +1443,12 @@ class Zip {
 		 *   size: number,
 		 *   crc32: number
 		 * }} */
-		let localFileSize = /** @type {number} */ 0,
-			centralDirectorySize = /** @type {number} */ 0;
+		let lFSize = /** @type {number} */ 0,
+			cDSz = /** @type {number} */ 0; //centralDirectorySize
 		for (let i = 0; i < fCnt; ++i) {
 			const f = fs[i],
 				opt = f.option, // ファイルの圧縮
-				fNameLen = opt.filename ? opt.filename.length : 0,
+				fnLen = opt.filename ? opt.filename.length : 0,
 				cmtLen = opt.comment ? opt.comment.length : 0;
 			// const extraFieldLength = opt.extraField ? opt.extraField.length : 0;
 			if (!f.compressed) {
@@ -1447,133 +1474,133 @@ class Zip {
 				for (let j = 12; j < l; ++j) buf[j] = Zip.encode(k, buf[j]); // data encryption
 				f.buffer = buf;
 			}
-			localFileSize += 30 + fNameLen + f.buffer.length; // 必要バッファサイズの計算// local file header// file data
-			centralDirectorySize += 46 + fNameLen + cmtLen; // file header
+			lFSize += 30 + fnLen + f.buffer.length; // 必要バッファサイズの計算// local file header// file data
+			cDSz += 46 + fnLen + cmtLen; // file header
 		}
-		const endOfCentralDirectorySize = 22 + (z.comment ? z.comment.length : 0), // end of central directory
-			o = ZU.u8(localFileSize + centralDirectorySize + endOfCentralDirectorySize),
+		const eOCDS = 22 + (z.comment ? z.comment.length : 0), // endOfCentralDirectorySize end of central directory
+			o = ZU.u8(lFSize + cDSz + eOCDS),
 			cDS = Zip.CentralDirectorySignature;
-		let op1 = 0,
-			op2 = localFileSize,
-			op3 = op2 + centralDirectorySize;
+		let q1 = 0,
+			q2 = lFSize,
+			q3 = q2 + cDSz;
 		for (const f of fs) {
 			const opt = f.option, // ファイルの圧縮
-				fNameLen = opt.filename ? opt.filename.length : 0,
+				fnLen = opt.filename ? opt.filename.length : 0,
 				exFldLen = 0, // TODO
 				cmtLen = opt.comment ? opt.comment.length : 0,
-				offset = op1, //// local file header & file header ////
+				off = q1, //// local file header & file header ////
 				LFHS = Zip.LocalFileHeaderSignature,
 				FHS = Zip.FileHeaderSignature;
-			o[op1++] = LFHS[0]; // local file header // signature
-			o[op1++] = LFHS[1];
-			o[op1++] = LFHS[2];
-			o[op1++] = LFHS[3];
-			o[op2++] = FHS[0]; // file header
-			o[op2++] = FHS[1];
-			o[op2++] = FHS[2];
-			o[op2++] = FHS[3];
-			const needVer = 20; // compressor info
-			o[op2++] = needVer & 0xff;
-			o[op2++] =
+			o[q1++] = LFHS[0]; // local file header // signature
+			o[q1++] = LFHS[1];
+			o[q1++] = LFHS[2];
+			o[q1++] = LFHS[3];
+			o[q2++] = FHS[0]; // file header
+			o[q2++] = FHS[1];
+			o[q2++] = FHS[2];
+			o[q2++] = FHS[3];
+			const nv = 20; // compressor info
+			o[q2++] = nv & 0xff;
+			o[q2++] =
 				/** @type {OperatingSystem} */
 				(opt.os) || Zip.OperatingSystem.MSDOS;
-			o[op1++] = o[op2++] = needVer & 0xff; // need version
-			o[op1++] = o[op2++] = (needVer >> 8) & 0xff;
+			o[q1++] = o[q2++] = nv & 0xff; // need version
+			o[q1++] = o[q2++] = (nv >> 8) & 0xff;
 			let flags = 0; // general purpose bit flag
 			if (opt.password || z.password) flags |= Zip.Flags.ENCRYPT;
-			o[op1++] = o[op2++] = flags & 0xff;
-			o[op1++] = o[op2++] = (flags >> 8) & 0xff;
-			const compressionMethod =
+			o[q1++] = o[q2++] = flags & 0xff;
+			o[q1++] = o[q2++] = (flags >> 8) & 0xff;
+			const cm =
 				/** @type {CompressionMethod} */
 				(opt.compressionMethod); // compression method
-			o[op1++] = o[op2++] = compressionMethod & 0xff;
-			o[op1++] = o[op2++] = (compressionMethod >> 8) & 0xff;
-			const date = /** @type {(Date|undefined)} */ (opt.date) || new Date(); // date
-			o[op1++] = o[op2++] = ((date.getMinutes() & 0x7) << 5) | ((date.getSeconds() / 2) | 0);
-			o[op1++] = o[op2++] = (date.getHours() << 3) | (date.getMinutes() >> 3);
-			o[op1++] = o[op2++] = (((date.getMonth() + 1) & 0x7) << 5) | date.getDate();
-			o[op1++] = o[op2++] = (((date.getFullYear() - 1980) & 0x7f) << 1) | ((date.getMonth() + 1) >> 3);
+			o[q1++] = o[q2++] = cm & 0xff;
+			o[q1++] = o[q2++] = (cm >> 8) & 0xff;
+			const dt = /** @type {(Date|undefined)} */ (opt.date) || new Date(); // date
+			o[q1++] = o[q2++] = ((dt.getMinutes() & 0x7) << 5) | ((dt.getSeconds() / 2) | 0);
+			o[q1++] = o[q2++] = (dt.getHours() << 3) | (dt.getMinutes() >> 3);
+			o[q1++] = o[q2++] = (((dt.getMonth() + 1) & 0x7) << 5) | dt.getDate();
+			o[q1++] = o[q2++] = (((dt.getFullYear() - 1980) & 0x7f) << 1) | ((dt.getMonth() + 1) >> 3);
 			const crc32 = f.crc32; // CRC-32
-			o[op1++] = o[op2++] = crc32 & 0xff;
-			o[op1++] = o[op2++] = (crc32 >> 8) & 0xff;
-			o[op1++] = o[op2++] = (crc32 >> 16) & 0xff;
-			o[op1++] = o[op2++] = (crc32 >> 24) & 0xff;
+			o[q1++] = o[q2++] = crc32 & 0xff;
+			o[q1++] = o[q2++] = (crc32 >> 8) & 0xff;
+			o[q1++] = o[q2++] = (crc32 >> 16) & 0xff;
+			o[q1++] = o[q2++] = (crc32 >> 24) & 0xff;
 			const size = f.buffer.length; // compressed size
-			o[op1++] = o[op2++] = size & 0xff;
-			o[op1++] = o[op2++] = (size >> 8) & 0xff;
-			o[op1++] = o[op2++] = (size >> 16) & 0xff;
-			o[op1++] = o[op2++] = (size >> 24) & 0xff;
+			o[q1++] = o[q2++] = size & 0xff;
+			o[q1++] = o[q2++] = (size >> 8) & 0xff;
+			o[q1++] = o[q2++] = (size >> 16) & 0xff;
+			o[q1++] = o[q2++] = (size >> 24) & 0xff;
 			const plainSize = f.size; // uncompressed size
-			o[op1++] = o[op2++] = plainSize & 0xff;
-			o[op1++] = o[op2++] = (plainSize >> 8) & 0xff;
-			o[op1++] = o[op2++] = (plainSize >> 16) & 0xff;
-			o[op1++] = o[op2++] = (plainSize >> 24) & 0xff;
-			o[op1++] = o[op2++] = fNameLen & 0xff; // filename length
-			o[op1++] = o[op2++] = (fNameLen >> 8) & 0xff;
-			o[op1++] = o[op2++] = exFldLen & 0xff; // extra field length
-			o[op1++] = o[op2++] = (exFldLen >> 8) & 0xff;
-			o[op2++] = cmtLen & 0xff; // file comment length
-			o[op2++] = (cmtLen >> 8) & 0xff;
-			o[op2++] = 0; // disk number start
-			o[op2++] = 0;
-			o[op2++] = 0; // internal file attributes
-			o[op2++] = 0;
-			o[op2++] = 0; // external file attributes
-			o[op2++] = 0;
-			o[op2++] = 0;
-			o[op2++] = 0;
-			o[op2++] = offset & 0xff; // relative offset of local header
-			o[op2++] = (offset >> 8) & 0xff;
-			o[op2++] = (offset >> 16) & 0xff;
-			o[op2++] = (offset >> 24) & 0xff;
-			const fName = opt.filename; // filename
-			if (fName) {
-				o.set(fName, op1);
-				o.set(fName, op2);
-				op1 += fNameLen;
-				op2 += fNameLen;
+			o[q1++] = o[q2++] = plainSize & 0xff;
+			o[q1++] = o[q2++] = (plainSize >> 8) & 0xff;
+			o[q1++] = o[q2++] = (plainSize >> 16) & 0xff;
+			o[q1++] = o[q2++] = (plainSize >> 24) & 0xff;
+			o[q1++] = o[q2++] = fnLen & 0xff; // filename length
+			o[q1++] = o[q2++] = (fnLen >> 8) & 0xff;
+			o[q1++] = o[q2++] = exFldLen & 0xff; // extra field length
+			o[q1++] = o[q2++] = (exFldLen >> 8) & 0xff;
+			o[q2++] = cmtLen & 0xff; // file comment length
+			o[q2++] = (cmtLen >> 8) & 0xff;
+			o[q2++] = 0; // disk number start
+			o[q2++] = 0;
+			o[q2++] = 0; // internal file attributes
+			o[q2++] = 0;
+			o[q2++] = 0; // external file attributes
+			o[q2++] = 0;
+			o[q2++] = 0;
+			o[q2++] = 0;
+			o[q2++] = off & 0xff; // relative offset of local header
+			o[q2++] = (off >> 8) & 0xff;
+			o[q2++] = (off >> 16) & 0xff;
+			o[q2++] = (off >> 24) & 0xff;
+			const fn = opt.filename; // filename
+			if (fn) {
+				o.set(fn, q1);
+				o.set(fn, q2);
+				q1 += fnLen;
+				q2 += fnLen;
 			}
 			const exFld = opt.extraField; // extra field
 			if (exFld) {
-				o.set(exFld, op1);
-				o.set(exFld, op2);
-				op1 += exFldLen;
-				op2 += exFldLen;
+				o.set(exFld, q1);
+				o.set(exFld, q2);
+				q1 += exFldLen;
+				q2 += exFldLen;
 			}
 			const cmt = opt.comment; // comment
 			if (cmt) {
-				o.set(cmt, op2);
-				op2 += cmtLen;
+				o.set(cmt, q2);
+				q2 += cmtLen;
 			}
-			o.set(f.buffer, op1); //// file data ////
-			op1 += f.buffer.length;
+			o.set(f.buffer, q1); //// file data ////
+			q1 += f.buffer.length;
 		}
-		o[op3++] = cDS[0]; //// end of central directory //// signature
-		o[op3++] = cDS[1];
-		o[op3++] = cDS[2];
-		o[op3++] = cDS[3];
-		o[op3++] = 0; // number of z disk
-		o[op3++] = 0;
-		o[op3++] = 0; // number of the disk with the start of the central directory
-		o[op3++] = 0;
-		o[op3++] = fCnt & 0xff; // total number of entries in the central directory on z disk
-		o[op3++] = (fCnt >> 8) & 0xff;
-		o[op3++] = fCnt & 0xff; // total number of entries in the central directory
-		o[op3++] = (fCnt >> 8) & 0xff;
-		o[op3++] = centralDirectorySize & 0xff; // size of the central directory
-		o[op3++] = (centralDirectorySize >> 8) & 0xff;
-		o[op3++] = (centralDirectorySize >> 16) & 0xff;
-		o[op3++] = (centralDirectorySize >> 24) & 0xff;
-		o[op3++] = localFileSize & 0xff; // offset of start of central directory with respect to the starting disk number
-		o[op3++] = (localFileSize >> 8) & 0xff;
-		o[op3++] = (localFileSize >> 16) & 0xff;
-		o[op3++] = (localFileSize >> 24) & 0xff;
+		o[q3++] = cDS[0]; //// end of central directory //// signature
+		o[q3++] = cDS[1];
+		o[q3++] = cDS[2];
+		o[q3++] = cDS[3];
+		o[q3++] = 0; // number of z disk
+		o[q3++] = 0;
+		o[q3++] = 0; // number of the disk with the start of the central directory
+		o[q3++] = 0;
+		o[q3++] = fCnt & 0xff; // total number of entries in the central directory on z disk
+		o[q3++] = (fCnt >> 8) & 0xff;
+		o[q3++] = fCnt & 0xff; // total number of entries in the central directory
+		o[q3++] = (fCnt >> 8) & 0xff;
+		o[q3++] = cDSz & 0xff; // size of the central directory
+		o[q3++] = (cDSz >> 8) & 0xff;
+		o[q3++] = (cDSz >> 16) & 0xff;
+		o[q3++] = (cDSz >> 24) & 0xff;
+		o[q3++] = lFSize & 0xff; // offset of start of central directory with respect to the starting disk number
+		o[q3++] = (lFSize >> 8) & 0xff;
+		o[q3++] = (lFSize >> 16) & 0xff;
+		o[q3++] = (lFSize >> 24) & 0xff;
 		const cmtLen = z.comment ? z.comment.length : 0; // .ZIP file comment length
-		o[op3++] = cmtLen & 0xff;
-		o[op3++] = (cmtLen >> 8) & 0xff;
+		o[q3++] = cmtLen & 0xff;
+		o[q3++] = (cmtLen >> 8) & 0xff;
 		if (z.comment) {
-			o.set(z.comment, op3); // .ZIP file comment
-			op3 += cmtLen;
+			o.set(z.comment, q3); // .ZIP file comment
+			q3 += cmtLen;
 		}
 		return o;
 	}
@@ -1676,11 +1703,11 @@ class Deflate {
 		z.input = /** @type {!(Uint8Array)} */ input;
 		z.output = /** @type {!(Uint8Array)} */ ZU.u8(Deflate.DefaultBufferSize);
 		z.compressionType = /** @type {Deflate.CompressionType} */ Deflate.CompressionType.DYNAMIC;
-		const rawDeflateOpt = /** @type {Object} */ {};
+		const rdOpt = /** @type {Object} */ {};
 		if (ZU.isN(opt.compressionType)) z.compressionType = opt.compressionType; // option parameters
-		for (const prop in opt) rawDeflateOpt[prop] = opt[prop]; // copy options
-		rawDeflateOpt.outputBuffer = z.output; // set raw-deflate output buffer
-		z.rawDeflate = /** @type {RawDeflate} */ new RawDeflate(z.input, rawDeflateOpt);
+		for (const prop in opt) rdOpt[prop] = opt[prop]; // copy options
+		rdOpt.outputBuffer = z.output; // set raw-deflate output buffer
+		z.rawDeflate = /** @type {RawDeflate} */ new RawDeflate(z.input, rdOpt);
 	}
 	/**
 	 * 直接圧縮に掛ける.
@@ -1737,7 +1764,7 @@ class Deflate {
 		flg |= fcheck;
 		o[p++] = flg;
 		z.rawDeflate.op = p;
-		const adler = Adler32.mkHash(z.input), // Adler-32 checksum
+		const a = Adler32.mkHash(z.input), // Adler-32 checksum
 			o2 = z.rawDeflate.compress();
 		let p2 = o2.length,
 			o3 = ZU.u8(o2.buffer); // subarray 分を元にもどす
@@ -1747,10 +1774,10 @@ class Deflate {
 			o3 = z.output;
 		}
 		const o4 = o3.subarray(0, p2 + 4);
-		o4[p2++] = (adler >> 24) & 0xff; // adler32
-		o4[p2++] = (adler >> 16) & 0xff;
-		o4[p2++] = (adler >> 8) & 0xff;
-		o4[p2++] = adler & 0xff;
+		o4[p2++] = (a >> 24) & 0xff; // adler32
+		o4[p2++] = (a >> 16) & 0xff;
+		o4[p2++] = (a >> 8) & 0xff;
+		o4[p2++] = a & 0xff;
 		return o4;
 	}
 }
@@ -1792,68 +1819,68 @@ class Gunzip {
 	 */
 	decodeMember() {
 		const m = /** @type {Zlib.GunzipMember} */ new GunzipMember(),
-			i = this.input;
+			i = this.input,
+			FM = Gzip.FlagsMask;
 		/** @type {number} character code */
 		let c,
-			ip = this.ip;
-		m.id1 = i[ip++];
-		m.id2 = i[ip++];
+			p = this.ip;
+		m.id1 = i[p++];
+		m.id2 = i[p++];
 		if (m.id1 !== 0x1f || m.id2 !== 0x8b) ZU.Err(`invalid file signature:${m.id1},${m.id2}`); // check signature
-		m.cm = i[ip++]; // check compression method
+		m.cm = i[p++]; // check compression method
 		switch (m.cm) {
 			case 8 /* XXX: use Zlib const */:
 				break;
 			default:
 				ZU.Err(`unknown compression method: ${m.cm}`);
 		}
-		m.flg = i[ip++]; // flags
-		const mT = i[ip++] | (i[ip++] << 8) | (i[ip++] << 16) | (i[ip++] << 24); // modification time
+		m.flg = i[p++]; // flags
+		const mT = i[p++] | (i[p++] << 8) | (i[p++] << 16) | (i[p++] << 24); // modification time
 		m.mtime = new Date(mT * 1000);
-		m.xfl = i[ip++]; // extra flags
-		m.os = i[ip++]; // operating system
-		if ((m.flg & Gzip.FlagsMask.FEXTRA) > 0) {
-			m.xlen = i[ip++] | (i[ip++] << 8); // extra
-			ip = Gunzip.decodeSubField(ip, m.xlen);
+		m.xfl = i[p++]; // extra flags
+		m.os = i[p++]; // operating system
+		if ((m.flg & FM.FEXTRA) > 0) {
+			m.xlen = i[p++] | (i[p++] << 8); // extra
+			p = Gunzip.decodeSubField(p, m.xlen);
 		}
-		if ((m.flg & Gzip.FlagsMask.FNAME) > 0) {
+		if ((m.flg & FM.FNAME) > 0) {
 			const s = []; // fname
-			for (let ci = 0; (c = i[ip++]) > 0; ci++) s[ci] = String.fromCharCode(c);
+			for (let j = 0; (c = i[p++]) > 0; j++) s[j] = String.fromCharCode(c);
 			m.name = s.join('');
 		}
-		if ((m.flg & Gzip.FlagsMask.FCOMMENT) > 0) {
+		if ((m.flg & FM.FCOMMENT) > 0) {
 			const s = []; // fcomment
-			for (let ci = 0; (c = i[ip++]) > 0; ci++) s[ci] = String.fromCharCode(c);
+			for (let j = 0; (c = i[p++]) > 0; j++) s[j] = String.fromCharCode(c);
 			m.comment = s.join('');
 		}
-		if ((m.flg & Gzip.FlagsMask.FHCRC) > 0) {
-			m.crc16 = CRC32.calc(i, 0, ip) & 0xffff; // fhcrc
-			if (m.crc16 !== (i[ip++] | (i[ip++] << 8))) ZU.Err('invalid header crc16');
+		if ((m.flg & FM.FHCRC) > 0) {
+			m.crc16 = CRC32.calc(i, 0, p) & 0xffff; // fhcrc
+			if (m.crc16 !== (i[p++] | (i[p++] << 8))) ZU.Err('invalid header crc16');
 		}
-		// isize を事前に取得すると展開後のサイズが分かるため、
+		// isize(x) を事前に取得すると展開後のサイズが分かるため、
 		// inflate処理のバッファサイズが事前に分かり、高速になる
 		const l = i.length,
-			isize = i[l - 4] | (i[l - 3] << 8) | (i[l - 2] << 16) | (i[l - 1] << 24);
-		// isize の妥当性チェック
+			x = i[l - 4] | (i[l - 3] << 8) | (i[l - 2] << 16) | (i[l - 1] << 24);
+		// isize(x) の妥当性チェック
 		// ハフマン符号では最小 2-bit のため、最大で 1/4 になる
 		// LZ77 符号では 長さと距離 2-Byte で最大 258-Byte を表現できるため、
 		// 1/128 になるとする
-		// ここから入力バッファの残りが isize の 512 倍以上だったら
+		// ここから入力バッファの残りが isize(x) の 512 倍以上だったら
 		// サイズ指定のバッファ確保は行わない事とする
-		const bufSize = l - ip - /* CRC-32 */ 4 - /* ISIZE */ 4 < isize * 512 ? isize : void 0, // inflate size
-			rawinflate = new RawInflate(i, { index: ip, bufferSize: bufSize }), // compressed block // RawInflate implementation.
-			inflated = rawinflate.decompress(); // inflated data.
-		m.data = inflated;
-		let ipr = rawinflate.ip;
-		const crc32 = (i[ipr++] | (i[ipr++] << 8) | (i[ipr++] << 16) | (i[ipr++] << 24)) >>> 0; // crc32
+		const bufSize = l - p - /* CRC-32 */ 4 - /* ISIZE */ 4 < x * 512 ? x : void 0, // inflate size
+			rawi = new RawInflate(i, { index: p, bufferSize: bufSize }), // compressed block // RawInflate implementation.
+			iftd = rawi.decompress(); // inflated data.
+		m.data = iftd;
+		let q = rawi.ip;
+		const crc32 = (i[q++] | (i[q++] << 8) | (i[q++] << 16) | (i[q++] << 24)) >>> 0; // crc32
 		m.crc32 = crc32;
-		if (CRC32.calc(inflated) !== crc32)
-			ZU.Err(`invalid CRC-32 checksum: 0x${CRC32.calc(inflated).toString(16)} / 0x${crc32.toString(16)}`);
-		const isize2 = (i[ipr++] | (i[ipr++] << 8) | (i[ipr++] << 16) | (i[ipr++] << 24)) >>> 0; // input size
-		m.isize = isize2;
-		if ((inflated.length & 0xffffffff) !== isize2)
-			ZU.Err(`invalid input size: ${inflated.length & 0xffffffff} / ${isize2}`);
+		if (CRC32.calc(iftd) !== crc32)
+			ZU.Err(`invalid CRC-32 checksum: 0x${CRC32.calc(iftd).toString(16)} / 0x${crc32.toString(16)}`);
+		const y = (i[q++] | (i[q++] << 8) | (i[q++] << 16) | (i[q++] << 24)) >>> 0; // input size
+		m.isize = y;
+		if ((iftd.length & 0xffffffff) !== y) ZU.Err(`invalid input size: ${iftd.length & 0xffffffff} / ${y}`);
 		this.member.push(m);
-		this.ip = ipr;
+		this.ip = q;
 	}
 	/**
 	 * サブフィールドのデコード
@@ -1967,73 +1994,74 @@ class Gzip {
 		const z = this,
 			o = /** @type {!(Uint8Array)} output buffer. */ ZU.u8(Gzip.DefaultBufferSize),
 			ipt = z.input,
-			ip = z.ip,
-			fName = z.filename,
+			p = z.ip,
+			fn = z.filename,
 			cmt = z.comment,
-			FM = Gzip.FlagsMask;
-		let op = /** @type {number} output buffer pointer. */ 0,
+			FM = Gzip.FlagsMask,
+			f = z.flags;
+		let q = /** @type {number} output buffer pointer. */ 0,
 			flg = 0; // flags
-		o[op++] = 0x1f; // check signature
-		o[op++] = 0x8b;
-		o[op++] = 8; /* XXX: use Zlib const */ // check compression method
-		if (z.flags.fname) flg |= FM.FNAME;
-		if (z.flags.fcomment) flg |= FM.FCOMMENT;
-		if (z.flags.fhcrc) flg |= FM.FHCRC;
+		o[q++] = 0x1f; // check signature
+		o[q++] = 0x8b;
+		o[q++] = 8; /* XXX: use Zlib const */ // check compression method
+		if (f.fname) flg |= FM.FNAME;
+		if (f.fcomment) flg |= FM.FCOMMENT;
+		if (f.fhcrc) flg |= FM.FHCRC;
 		// XXX: FTEXT
 		// XXX: FEXTRA
-		o[op++] = flg;
+		o[q++] = flg;
 		const mT = ((Date.now ? Date.now() : +new Date()) / 1000) | 0; // modification time
-		o[op++] = mT & 0xff;
-		o[op++] = (mT >>> 8) & 0xff;
-		o[op++] = (mT >>> 16) & 0xff;
-		o[op++] = (mT >>> 24) & 0xff;
-		o[op++] = 0; // extra flags
-		o[op++] = Gzip.OperatingSystem.UNKNOWN; // operating system
+		o[q++] = mT & 0xff;
+		o[q++] = (mT >>> 8) & 0xff;
+		o[q++] = (mT >>> 16) & 0xff;
+		o[q++] = (mT >>> 24) & 0xff;
+		o[q++] = 0; // extra flags
+		o[q++] = Gzip.OperatingSystem.UNKNOWN; // operating system
 		// extra
 		/* NOP */
-		if (z.flags.fname !== void 0) {
-			for (let i = 0, il = fName.length; i < il; ++i) {
-				const c = fName.charCodeAt(i); // fname
-				if (c > 0xff) o[op++] = (c >>> 8) & 0xff;
-				o[op++] = c & 0xff;
+		if (f.fname !== void 0) {
+			for (let i = 0, il = fn.length; i < il; ++i) {
+				const c = fn.charCodeAt(i); // fname
+				if (c > 0xff) o[q++] = (c >>> 8) & 0xff;
+				o[q++] = c & 0xff;
 			}
-			o[op++] = 0; // null termination
+			o[q++] = 0; // null termination
 		}
-		if (z.flags.comment) {
+		if (f.comment) {
 			for (let i = 0, il = cmt.length; i < il; ++i) {
 				const c = cmt.charCodeAt(i); // fcomment
-				if (c > 0xff) o[op++] = (c >>> 8) & 0xff;
-				o[op++] = c & 0xff;
+				if (c > 0xff) o[q++] = (c >>> 8) & 0xff;
+				o[q++] = c & 0xff;
 			}
-			o[op++] = 0; // null termination
+			o[q++] = 0; // null termination
 		}
-		if (z.flags.fhcrc) {
-			const crc16 = CRC32.calc(o, 0, op) & 0xffff; // fhcrc CRC-16 value for FHCRC flag.
-			o[op++] = crc16 & 0xff;
-			o[op++] = (crc16 >>> 8) & 0xff;
+		if (f.fhcrc) {
+			const crc16 = CRC32.calc(o, 0, q) & 0xffff; // fhcrc CRC-16 value for FHCRC flag.
+			o[q++] = crc16 & 0xff;
+			o[q++] = (crc16 >>> 8) & 0xff;
 		}
 		z.deflateOptions.outputBuffer = o; // add compress option
-		z.deflateOptions.outputIndex = op;
-		const rawdeflate = new RawDeflate(ipt, z.deflateOptions); // compress//raw deflate object.
-		let o2 = rawdeflate.compress(),
-			op2 = rawdeflate.op;
-		if (op2 + 8 > o2.buffer.byteLength) {
-			z.output = ZU.u8(op2 + 8); // expand buffer
+		z.deflateOptions.outputIndex = q;
+		const rd = new RawDeflate(ipt, z.deflateOptions); // compress//raw deflate object.
+		let o2 = rd.compress(),
+			q2 = rd.op;
+		if (q2 + 8 > o2.buffer.byteLength) {
+			z.output = ZU.u8(q2 + 8); // expand buffer
 			z.output.set(ZU.u8(o2.buffer));
 			o2 = z.output;
 		} else o2 = ZU.u8(o2.buffer);
 		const crc32 = CRC32.calc(ipt); // crc32 CRC-32 value for verification.
-		o2[op2++] = crc32 & 0xff;
-		o2[op2++] = (crc32 >>> 8) & 0xff;
-		o2[op2++] = (crc32 >>> 16) & 0xff;
-		o2[op2++] = (crc32 >>> 24) & 0xff;
+		o2[q2++] = crc32 & 0xff;
+		o2[q2++] = (crc32 >>> 8) & 0xff;
+		o2[q2++] = (crc32 >>> 16) & 0xff;
+		o2[q2++] = (crc32 >>> 24) & 0xff;
 		const il = ipt.length; // input size
-		o2[op2++] = il & 0xff;
-		o2[op2++] = (il >>> 8) & 0xff;
-		o2[op2++] = (il >>> 16) & 0xff;
-		o2[op2++] = (il >>> 24) & 0xff;
-		z.ip = ip;
-		const o3 = op2 < o2.length ? o2.subarray(0, op2) : o2;
+		o2[q2++] = il & 0xff;
+		o2[q2++] = (il >>> 8) & 0xff;
+		o2[q2++] = (il >>> 16) & 0xff;
+		o2[q2++] = (il >>> 24) & 0xff;
+		z.ip = p;
+		const o3 = q2 < o2.length ? o2.subarray(0, q2) : o2;
 		z.output = o3;
 		return o3;
 	}
@@ -2056,15 +2084,16 @@ class InflateStream {
 	 * @return {!(Uint8Array)} inflated buffer.
 	 */
 	decompress(input) {
-		const z = this;
+		const z = this,
+			i = input;
 		// /** @type {number} adler-32 checksum */
 		// var adler32;
 		// 新しい入力を入力バッファに結合する
 		// XXX Array, Uint8Array のチェックを行うか確認する
-		if (input !== void 0) {
-			const t = ZU.u8(z.input.length + input.length);
+		if (i !== void 0) {
+			const t = ZU.u8(z.input.length + i.length);
 			t.set(z.input, 0);
-			t.set(input, z.input.length);
+			t.set(i, z.input.length);
 			z.input = t;
 		}
 		if (z.method === void 0) if (z.readHeader() < 0) return ZU.u8();
@@ -2087,10 +2116,10 @@ class InflateStream {
 		return buf;
 	}
 	readHeader() {
-		let ip = this.ip;
+		let p = this.ip;
 		const i = this.input,
-			cmf = i[ip++], // Compression Method and Flags
-			flg = i[ip++];
+			cmf = i[p++], // Compression Method and Flags
+			flg = i[p++];
 		if (cmf === void 0 || flg === void 0) return -1;
 		switch (cmf & 0x0f) {
 			case Zlib.CompressionMethod.DEFLATE: // compression method
@@ -2101,7 +2130,7 @@ class InflateStream {
 		}
 		if (((cmf << 8) + flg) % 31 !== 0) ZU.Err(`invalid fcheck flag:${((cmf << 8) + flg) % 31}`); // fcheck
 		if (flg & 0x20) ZU.Err('fdict flag is not supported'); // fdict (not supported)
-		this.ip = ip;
+		this.ip = p;
 	}
 }
 class Inflate {
@@ -2237,7 +2266,7 @@ class RawInflateStream {
 					break;
 				case S.BLOCK_HEADER_END: /* FALLTHROUGH */ // block body
 				case S.BLOCK_BODY_START:
-					switch (z.currentBlockType) {
+					switch (z.currentBT) {
 						case BT.UNCOMPRESSED:
 							if (z.readUncompressedBlockHeader() < 0) stop = true;
 							break;
@@ -2251,7 +2280,7 @@ class RawInflateStream {
 					break;
 				case S.BLOCK_BODY_END: // decode data
 				case S.DECODE_BLOCK_START:
-					switch (z.currentBlockType) {
+					switch (z.currentBT) {
 						case BT.UNCOMPRESSED:
 							if (z.parseUncompressedBlock() < 0) stop = true;
 							break;
@@ -2268,26 +2297,6 @@ class RawInflateStream {
 			}
 		return z.concatBuffer();
 	}
-	/**
-	 * fixed huffman length code table
-	 * @const
-	 * @type {!Array}
-	 */
-	static FixedLiteralLengthTable = (function () {
-		const ls = ZU.u8(288);
-		for (let i = 0, il = ls.length; i < il; ++i) ls[i] = i <= 143 ? 8 : i <= 255 ? 9 : i <= 279 ? 7 : 8;
-		return Huffman.buildHuffmanTable(ls);
-	})();
-	/**
-	 * fixed huffman distance code table
-	 * @const
-	 * @type {!Array}
-	 */
-	static FixedDistanceTable = (function () {
-		const ls = ZU.u8(30);
-		for (let i = 0, il = ls.length; i < il; ++i) ls[i] = 5;
-		return Huffman.buildHuffmanTable(ls);
-	})();
 	/**
 	 * parse deflated block.
 	 */
@@ -2306,13 +2315,13 @@ class RawInflateStream {
 		hdr >>>= 1; // BTYPE
 		switch (hdr) {
 			case 0: // uncompressed
-				z.currentBlockType = BT.UNCOMPRESSED;
+				z.currentBT = BT.UNCOMPRESSED;
 				break;
 			case 1: // fixed huffman
-				z.currentBlockType = BT.FIXED;
+				z.currentBT = BT.FIXED;
 				break;
 			case 2: // dynamic huffman
-				z.currentBlockType = BT.DYNAMIC;
+				z.currentBT = BT.DYNAMIC;
 				break;
 			default: // reserved or other
 				ZU.Err(`unknown BTYPE: ${hdr}`);
@@ -2326,23 +2335,24 @@ class RawInflateStream {
 	 */
 	readBits(length) {
 		const z = this,
+			l = length,
 			i = z.input;
 		let bitsbuf = z.bitsbuf,
 			bitsbuflen = z.bitsbuflen,
-			ip = z.ip,
-			octet = /** @type {number} input and output byte. */ 0;
-		while (bitsbuflen < length) {
-			if (i.length <= ip) return -1; // not enough buffer
-			octet = i[ip++]; // input byte
-			bitsbuf |= octet << bitsbuflen; // concat octet
+			p = z.ip,
+			o8 = /** @type {number} input and output byte. */ 0;
+		while (bitsbuflen < l) {
+			if (i.length <= p) return -1; // not enough buffer
+			o8 = i[p++]; // input byte
+			bitsbuf |= o8 << bitsbuflen; // concat octet
 			bitsbuflen += 8;
 		}
-		const octetOut = bitsbuf & /* MASK */ ((1 << length) - 1); // output byte
-		bitsbuf >>>= length;
-		bitsbuflen -= length;
+		const octetOut = bitsbuf & /* MASK */ ((1 << l) - 1); // output byte
+		bitsbuf >>>= l;
+		bitsbuflen -= l;
 		z.bitsbuf = bitsbuf;
 		z.bitsbuflen = bitsbuflen;
-		z.ip = ip;
+		z.ip = p;
 		return octetOut;
 	}
 	/**
@@ -2357,13 +2367,13 @@ class RawInflateStream {
 			maxCLen = /** @type {number} */ table[1];
 		let bitsbuf = z.bitsbuf,
 			bitsbuflen = z.bitsbuflen,
-			ip = z.ip,
-			octet;
+			p = z.ip,
+			o8;
 		/** @type {number} input byte */
 		while (bitsbuflen < maxCLen) {
-			if (i.length <= ip) return -1; // not enough buffer
-			octet = i[ip++];
-			bitsbuf |= octet << bitsbuflen;
+			if (i.length <= p) return -1; // not enough buffer
+			o8 = i[p++];
+			bitsbuf |= o8 << bitsbuflen;
 			bitsbuflen += 8;
 		}
 		const cWithLen = /** @type {number} code length & code (16bit, 16bit) */ cT[bitsbuf & ((1 << maxCLen) - 1)], // read max length
@@ -2371,7 +2381,7 @@ class RawInflateStream {
 		if (cLen > bitsbuflen) ZU.Err(`invalid code length: ${cLen}`);
 		z.bitsbuf = bitsbuf >> cLen;
 		z.bitsbuflen = bitsbuflen - cLen;
-		z.ip = ip;
+		z.ip = p;
 		return cWithLen & 0xffff;
 	}
 	/**
@@ -2380,15 +2390,15 @@ class RawInflateStream {
 	readUncompressedBlockHeader() {
 		const z = this,
 			i = z.input;
-		let ip = z.ip;
+		let p = z.ip;
 		z.status = RawInflateStream.Status.BLOCK_BODY_START;
-		if (ip + 4 >= i.length) return -1;
-		const l = /** @type {number} block length */ i[ip++] | (i[ip++] << 8),
-			nL = /** @type {number} number for check block length */ i[ip++] | (i[ip++] << 8);
+		if (p + 4 >= i.length) return -1;
+		const l = /** @type {number} block length */ i[p++] | (i[p++] << 8),
+			nL = /** @type {number} number for check block length */ i[p++] | (i[p++] << 8);
 		if (l === ~nL) ZU.Err('invalid uncompressed block header: length verify'); // check len & nlen
 		z.bitsbuf = 0; // skip buffered header bits
 		z.bitsbuflen = 0;
-		z.ip = ip;
+		z.ip = p;
 		z.blockLength = l;
 		z.status = RawInflateStream.Status.BLOCK_BODY_END;
 	}
@@ -2398,26 +2408,26 @@ class RawInflateStream {
 	parseUncompressedBlock() {
 		const z = this,
 			i = z.input;
-		let ip = z.ip,
+		let p = z.ip,
 			o = z.output,
-			op = z.op,
+			q = z.op,
 			l = z.blockLength;
 		z.status = RawInflateStream.Status.DECODE_BLOCK_START;
 		// copy
 		// XXX: とりあえず素直にコピー
 		while (l--) {
-			if (op === o.length) o = z.expandBuffer({ fixRatio: 2 });
-			if (ip >= i.length) {
-				z.ip = ip; // not enough input buffer
-				z.op = op;
+			if (q === o.length) o = z.expandBuffer({ fixRatio: 2 });
+			if (p >= i.length) {
+				z.ip = p; // not enough input buffer
+				z.op = q;
 				z.blockLength = l + 1; // コピーしてないので戻す
 				return -1;
 			}
-			o[op++] = i[ip++];
+			o[q++] = i[p++];
 		}
 		if (l < 0) z.status = RawInflateStream.Status.DECODE_BLOCK_END;
-		z.ip = ip;
-		z.op = op;
+		z.ip = p;
+		z.op = q;
 		return 0;
 	}
 	/**
@@ -2425,8 +2435,8 @@ class RawInflateStream {
 	 */
 	parseFixedHuffmanBlock() {
 		this.status = RawInflateStream.Status.BLOCK_BODY_START;
-		this.litlenTable = RawInflateStream.FixedLiteralLengthTable;
-		this.distTable = RawInflateStream.FixedDistanceTable;
+		this.litlenTable = Zlib.FixedLiteralLengthTable;
+		this.distTable = Zlib.FixedDistanceTable;
 		this.status = RawInflateStream.Status.BLOCK_BODY_END;
 		return 0;
 	}
@@ -2476,48 +2486,48 @@ class RawInflateStream {
 	}
 	parseDynamicHuffmanBlockImpl(codeLengths, hlit, hdist, hclen) {
 		const z = this;
-		let prev = 0;
+		let pv = 0;
 		for (let i = 0; i < hclen; ++i) {
-			const bits = z.readBits(3); // decode code lengths
-			if (bits < 0) ZU.Err('not enough input');
-			codeLengths[Zlib.Order[i]] = bits;
+			const b = z.readBits(3); // decode code lengths
+			if (b < 0) ZU.Err('not enough input');
+			codeLengths[Zlib.Order[i]] = b;
 		}
 		const h = hlit + hdist,
-			cLensT = /** @type {!Array} code lengths table. */ Huffman.buildHuffmanTable(codeLengths), // decode length table
+			cLensT = /** @type {!Array} code lengths table. */ Huffman.bT(codeLengths), // decode length table
 			lenT = /** @type {!(Uint8Array.<number>)} code length table. */ ZU.u8(h);
 		for (let i = 0; i < h; ) {
-			let bits = /** @type {number} */ 0;
+			let b = /** @type {number} */ 0;
 			const c = z.readCodeByTable(cLensT);
 			if (c < 0) ZU.Err('not enough input');
-			let repeat;
+			let rpt;
 			switch (c) {
 				case 16:
-					if ((bits = z.readBits(2)) < 0) ZU.Err('not enough input');
-					repeat = 3 + bits;
-					while (repeat--) lenT[i++] = prev;
+					if ((b = z.readBits(2)) < 0) ZU.Err('not enough input');
+					rpt = 3 + b;
+					while (rpt--) lenT[i++] = pv;
 					break;
 				case 17:
-					if ((bits = z.readBits(3)) < 0) ZU.Err('not enough input');
-					repeat = 3 + bits;
-					while (repeat--) lenT[i++] = 0;
-					prev = 0;
+					if ((b = z.readBits(3)) < 0) ZU.Err('not enough input');
+					rpt = 3 + b;
+					while (rpt--) lenT[i++] = 0;
+					pv = 0;
 					break;
 				case 18:
-					if ((bits = z.readBits(7)) < 0) ZU.Err('not enough input');
-					repeat = 11 + bits;
-					while (repeat--) lenT[i++] = 0;
-					prev = 0;
+					if ((b = z.readBits(7)) < 0) ZU.Err('not enough input');
+					rpt = 11 + b;
+					while (rpt--) lenT[i++] = 0;
+					pv = 0;
 					break;
 				default:
 					lenT[i++] = c;
-					prev = c;
+					pv = c;
 					break;
 			}
 		}
 		// litlenLengths = ZU.u8(hlit); // literal and length code
 		// distLengths = ZU.u8(hdist); // distance code
-		z.litlenTable = Huffman.buildHuffmanTable(lenT.subarray(0, hlit));
-		z.distTable = Huffman.buildHuffmanTable(lenT.subarray(hlit));
+		z.litlenTable = Huffman.bT(lenT.subarray(0, hlit));
+		z.distTable = Huffman.bT(lenT.subarray(hlit));
 	}
 	/**
 	 * decode huffman code (dynamic)
@@ -2528,60 +2538,60 @@ class RawInflateStream {
 			lL = z.litlenTable,
 			dist = z.distTable;
 		let o = z.output,
-			op = z.op,
+			q = z.op,
 			oL = o.length;
 		z.status = RawInflateStream.Status.DECODE_BLOCK_START;
 		while (o) {
 			z.save_();
 			const c = /** @type {number} huffman code. */ z.readCodeByTable(lL);
 			if (c < 0) {
-				z.op = op;
+				z.op = q;
 				z.restore_();
 				return -1;
 			}
 			if (c === 256) break;
 			if (c < 256) {
-				if (op === oL) {
+				if (q === oL) {
 					o = z.expandBuffer(); // literal
 					oL = o.length;
 				}
-				o[op++] = c;
+				o[q++] = c;
 				continue;
 			}
 			const ti = /** @type {number} table index. */ c - 257; // length code
 			let cLen = /** @type {number} huffman code length. */ Zlib.LengthCodeTable[ti];
 			if (Zlib.LengthExtraTable[ti] > 0) {
-				const bits = z.readBits(Zlib.LengthExtraTable[ti]);
-				if (bits < 0) {
-					z.op = op;
+				const b = z.readBits(Zlib.LengthExtraTable[ti]);
+				if (b < 0) {
+					z.op = q;
 					z.restore_();
 					return -1;
 				}
-				cLen += bits;
+				cLen += b;
 			}
 			const dcode = z.readCodeByTable(dist); // dist code
 			if (dcode < 0) {
-				z.op = op;
+				z.op = q;
 				z.restore_();
 				return -1;
 			}
 			let codeDist = /** @type {number} huffman code distination. */ Zlib.DistCodeTable[dcode];
 			if (Zlib.DistExtraTable[dcode] > 0) {
-				const bits = z.readBits(Zlib.DistExtraTable[dcode]);
-				if (bits < 0) {
-					z.op = op;
+				const b = z.readBits(Zlib.DistExtraTable[dcode]);
+				if (b < 0) {
+					z.op = q;
 					z.restore_();
 					return -1;
 				}
-				codeDist += bits;
+				codeDist += b;
 			}
-			if (op + cLen >= oL) {
+			if (q + cLen >= oL) {
 				o = z.expandBuffer(); // lz77 decode
 				oL = o.length;
 			}
-			while (cLen--) o[op] = o[op++ - codeDist];
+			while (cLen--) o[q] = o[q++ - codeDist];
 			if (z.ip === z.input.length) {
-				z.op = op; // break
+				z.op = q; // break
 				return -1;
 			}
 		}
@@ -2589,7 +2599,7 @@ class RawInflateStream {
 			z.bitsbuflen -= 8;
 			z.ip--;
 		}
-		z.op = op;
+		z.op = q;
 		z.status = RawInflateStream.Status.DECODE_BLOCK_END;
 	}
 	/**
@@ -2601,19 +2611,19 @@ class RawInflateStream {
 		const z = this,
 			i = z.input,
 			o = z.output;
-		let ratio = /** @type {number} expantion ratio. */ (i.length / z.ip + 1) | 0,
-			newSize = /** @type {number} new output buffer size. */ 0;
+		let r = /** @type {number} expantion ratio. */ (i.length / z.ip + 1) | 0,
+			ns = /** @type {number} new output buffer size. */ 0;
 		if (opt) {
-			if (ZU.isN(opt.fixRatio)) ratio = opt.fixRatio;
-			if (ZU.isN(opt.addRatio)) ratio += opt.addRatio;
+			if (ZU.isN(opt.fixRatio)) r = opt.fixRatio;
+			if (ZU.isN(opt.addRatio)) r += opt.addRatio;
 		}
-		if (ratio < 2) {
+		if (r < 2) {
 			const maxHuffCode =
 					/** @type {number} maximum number of huffman code. */ (i.length - z.ip) / z.litlenTable[2], // calculate new buffer size
 				maxInflateSize = /** @type {number} max inflate size. */ ((maxHuffCode / 2) * 258) | 0;
-			newSize = maxInflateSize < o.length ? o.length + maxInflateSize : o.length << 1;
-		} else newSize = o.length * ratio;
-		const buf = /** @type {!(Uint8Array)} store buffer. */ ZU.u8(newSize); // buffer expantion
+			ns = maxInflateSize < o.length ? o.length + maxInflateSize : o.length << 1;
+		} else ns = o.length * r;
+		const buf = /** @type {!(Uint8Array)} store buffer. */ ZU.u8(ns); // buffer expantion
 		buf.set(o);
 		z.output = buf;
 		return z.output;
@@ -2624,17 +2634,17 @@ class RawInflateStream {
 	 */
 	concatBuffer() {
 		const z = this,
-			op = /** @type {number} */ z.op,
+			q = /** @type {number} */ z.op,
 			buf = /** @type {!(Uint8Array)} output buffer. */ z.resize
-				? ZU.u8(z.output.subarray(z.sp, op))
-				: z.output.subarray(z.sp, op),
+				? ZU.u8(z.output.subarray(z.sp, q))
+				: z.output.subarray(z.sp, q),
 			MBL = Zlib.MaxBackwardLength,
 			t = /** @type {Uint8Array} */ (z.output);
-		z.sp = op;
-		if (op > MBL + z.bufferSize) {
+		z.sp = q;
+		if (q > MBL + z.bufferSize) {
 			z.op = z.sp = MBL; // compaction
 			z.output = ZU.u8(z.bufferSize + MBL);
-			z.output.set(t.subarray(op - MBL, op));
+			z.output.set(t.subarray(q - MBL, q));
 		}
 		return buf;
 	}
@@ -2651,26 +2661,6 @@ export class RawInflate {
 		BLOCK: 0,
 		ADAPTIVE: 1,
 	};
-	/**
-	 * fixed huffman length code table
-	 * @const
-	 * @type {!Array}
-	 */
-	static FixedLiteralLengthTable = (function () {
-		const lengths = ZU.u8(288);
-		for (let i = 0; i < 288; ++i) lengths[i] = i <= 143 ? 8 : i <= 255 ? 9 : i <= 279 ? 7 : 8;
-		return Huffman.buildHuffmanTable(lengths);
-	})();
-	/**
-	 * fixed huffman distance code table
-	 * @const
-	 * @type {!Array}
-	 */
-	static FixedDistanceTable = (function () {
-		const lengths = ZU.u8(30);
-		for (let i = 0; i < 30; ++i) lengths[i] = 5;
-		return Huffman.buildHuffmanTable(lengths);
-	})();
 	/**
 	 * @constructor
 	 * @param {!(Uint8Array.<number>)} input input buffer.
@@ -2757,23 +2747,24 @@ export class RawInflate {
 	 */
 	readBits(length) {
 		const z = this,
-			i = z.input;
+			i = z.input,
+			l = length;
 		let bitsbuf = z.bitsbuf,
 			bitsbuflen = z.bitsbuflen,
-			ip = z.ip;
-		if (ip + ((length - bitsbuflen + 7) >> 3) >= i.length) ZU.Err('input buffer is broken'); // input byte
-		while (bitsbuflen < length) {
-			const a = i[ip++];
+			p = z.ip;
+		if (p + ((l - bitsbuflen + 7) >> 3) >= i.length) ZU.Err('input buffer is broken'); // input byte
+		while (bitsbuflen < l) {
+			const a = i[p++];
 			bitsbuf |= a << bitsbuflen; // not enough buffer
 			bitsbuflen += 8;
 		}
-		const octet = bitsbuf & /* MASK */ ((1 << length) - 1); //input and output byte.// output byte
-		bitsbuf >>>= length;
-		bitsbuflen -= length;
+		const o8 = bitsbuf & /* MASK */ ((1 << l) - 1); //input and output byte.// output byte
+		bitsbuf >>>= l;
+		bitsbuflen -= l;
 		z.bitsbuf = bitsbuf;
 		z.bitsbuflen = bitsbuflen;
-		z.ip = ip;
-		return octet;
+		z.ip = p;
+		return o8;
 	}
 	/**
 	 * read huffman code using table
@@ -2788,10 +2779,10 @@ export class RawInflate {
 			maxCLen = table[1];
 		let bitsbuf = z.bitsbuf,
 			bitsbuflen = z.bitsbuflen,
-			ip = z.ip;
+			p = z.ip;
 		while (bitsbuflen < maxCLen) {
-			if (ip >= iL) break; // not enough buffer
-			bitsbuf |= i[ip++] << bitsbuflen;
+			if (p >= iL) break; // not enough buffer
+			bitsbuf |= i[p++] << bitsbuflen;
 			bitsbuflen += 8;
 		}
 		const cWithLen = cT[bitsbuf & ((1 << maxCLen) - 1)], //code length & code (16bit, 16bit) // read max length
@@ -2799,7 +2790,7 @@ export class RawInflate {
 		if (cLen > bitsbuflen) ZU.Err(`invalid code length: ${cLen}`);
 		z.bitsbuf = bitsbuf >> cLen;
 		z.bitsbuflen = bitsbuflen - cLen;
-		z.ip = ip;
+		z.ip = p;
 		return cWithLen & 0xffff;
 	}
 	/**
@@ -2810,49 +2801,49 @@ export class RawInflate {
 			i = z.input,
 			iL = i.length,
 			oL = z.output.length; //output buffer length
-		let ip = z.ip,
+		let p = z.ip,
 			o = z.output,
-			op = z.op;
+			q = z.op;
 		z.bitsbuf = 0; // skip buffered header bits
 		z.bitsbuflen = 0;
-		if (ip + 1 >= iL) ZU.Err('invalid uncompressed block header: LEN');
-		let l = i[ip++] | (i[ip++] << 8); // len block length
-		if (ip + 1 >= iL) ZU.Err('invalid uncompressed block header: NLEN');
-		const nlen = i[ip++] | (i[ip++] << 8); // nlen number for check block length
-		if (l === ~nlen) ZU.Err('invalid uncompressed block header: length verify'); // check len & nlen
-		if (ip + l > iL) ZU.Err('input buffer is broken'); // check size
+		if (p + 1 >= iL) ZU.Err('invalid uncompressed block header: LEN');
+		let l = i[p++] | (i[p++] << 8); // len block length
+		if (p + 1 >= iL) ZU.Err('invalid uncompressed block header: NLEN');
+		const nL = i[p++] | (i[p++] << 8); // nlen number for check block length
+		if (l === ~nL) ZU.Err('invalid uncompressed block header: length verify'); // check len & nlen
+		if (p + l > iL) ZU.Err('input buffer is broken'); // check size
 		switch (z.bufferType) {
 			case RawInflate.BufferType.BLOCK: // pre copy
-				while (op + l > o.length) {
-					const preCopy = oL - op; //copy counter
-					l -= preCopy;
-					o.set(i.subarray(ip, ip + preCopy), op);
-					op += preCopy;
-					ip += preCopy;
-					z.op = op;
+				while (q + l > o.length) {
+					const cc = oL - q; //copy counter
+					l -= cc;
+					o.set(i.subarray(p, p + cc), q);
+					q += cc;
+					p += cc;
+					z.op = q;
 					o = z.expandBufferBlock(); // expand buffer
-					op = z.op;
+					q = z.op;
 				}
 				break;
 			case RawInflate.BufferType.ADAPTIVE:
-				while (op + l > o.length) o = z.expandBufferAdaptive({ fixRatio: 2 });
+				while (q + l > o.length) o = z.expandBufferAdaptive({ fixRatio: 2 });
 				break;
 			default:
 				ZU.Err('invalid inflate mode');
 		}
-		o.set(i.subarray(ip, ip + l), op); // copy
-		op += l;
-		ip += l;
-		z.ip = ip;
-		z.op = op;
+		o.set(i.subarray(p, p + l), q); // copy
+		q += l;
+		p += l;
+		z.ip = p;
+		z.op = q;
 		z.output = o;
 	}
 	/**
 	 * parse fixed huffman block.
 	 */
 	parseFixedHuffmanBlock() {
-		const FLLT = RawInflate.FixedLiteralLengthTable,
-			FDT = RawInflate.FixedDistanceTable;
+		const FLLT = Zlib.FixedLiteralLengthTable,
+			FDT = Zlib.FixedDistanceTable;
 		switch (this.bufferType) {
 			case RawInflate.BufferType.ADAPTIVE:
 				this.decodeHuffmanAdaptive(FLLT, FDT);
@@ -2873,37 +2864,37 @@ export class RawInflate {
 			hdist = /** @type {number} number of distance codes. */ z.readBits(5) + 1,
 			hclen = /** @type {number} number of code lengths. */ z.readBits(4) + 4,
 			cLens = /** @type {!(Uint8Array.<number>)} code lengths. */ ZU.u8(Zlib.Order.length);
-		let prev = /** @type {number} */ 0,
+		let pv = /** @type {number} */ 0,
 			rpt = /** @type {number} */ 0;
 		for (let i = 0; i < hclen; ++i) cLens[Zlib.Order[i]] = z.readBits(3); // decode code lengths
-		const cLT = Huffman.buildHuffmanTable(cLens), //code lengths table. decode length table
-			len = hlit + hdist,
-			lT = ZU.u8(len); //code length table.
-		for (let i = 0; i < len; ) {
+		const cLT = Huffman.bT(cLens), //code lengths table. decode length table
+			l = hlit + hdist,
+			lT = ZU.u8(l); //code length table.
+		for (let i = 0; i < l; ) {
 			const c = z.readCodeByTable(cLT);
 			switch (c) {
 				case 16:
 					rpt = 3 + z.readBits(2);
-					while (rpt--) lT[i++] = prev;
+					while (rpt--) lT[i++] = pv;
 					break;
 				case 17:
 					rpt = 3 + z.readBits(3);
 					while (rpt--) lT[i++] = 0;
-					prev = 0;
+					pv = 0;
 					break;
 				case 18:
 					rpt = 11 + z.readBits(7);
 					while (rpt--) lT[i++] = 0;
-					prev = 0;
+					pv = 0;
 					break;
 				default:
 					lT[i++] = c;
-					prev = c;
+					pv = c;
 					break;
 			}
 		}
-		const lLT = Huffman.buildHuffmanTable(lT.subarray(0, hlit)), //literal and length code table.
-			dT = Huffman.buildHuffmanTable(lT.subarray(hlit)); //distance code table.
+		const lLT = Huffman.bT(lT.subarray(0, hlit)), //literal and length code table.
+			dT = Huffman.bT(lT.subarray(hlit)); //distance code table.
 		switch (z.bufferType) {
 			case RawInflate.BufferType.ADAPTIVE:
 				z.decodeHuffmanAdaptive(lLT, dT);
@@ -2928,38 +2919,38 @@ export class RawInflate {
 			dCT = Zlib.DistCodeTable,
 			dET = Zlib.DistExtraTable;
 		let o = z.output,
-			op = z.op,
+			q = z.op,
 			c; //huffman code.
 		z.currentLitlenTable = litlen;
 		while ((c = z.readCodeByTable(litlen)) !== 256) {
 			if (c === 0) return;
 			if (c < 256) {
-				if (op >= oL) {
-					z.op = op; // literal
+				if (q >= oL) {
+					z.op = q; // literal
 					o = z.expandBufferBlock();
-					op = z.op;
+					q = z.op;
 				}
-				o[op++] = c;
+				o[q++] = c;
 				continue;
 			}
 			const ti = c - 257; // length code
 			let cL = lCT[ti]; //huffman code length.
 			if (lET[ti] > 0) cL += z.readBits(lET[ti]);
 			c = z.readCodeByTable(dist); // dist code
-			let codeDist = dCT[c]; //huffman code distination.
-			if (dET[c] > 0) codeDist += z.readBits(dET[c]);
-			if (op >= oL) {
-				z.op = op; // lz77 decode
+			let cDist = dCT[c]; //huffman code distination.
+			if (dET[c] > 0) cDist += z.readBits(dET[c]);
+			if (q >= oL) {
+				z.op = q; // lz77 decode
 				o = z.expandBufferBlock();
-				op = z.op;
+				q = z.op;
 			}
-			while (cL--) o[op] = o[op++ - codeDist];
+			while (cL--) o[q] = o[q++ - cDist];
 		}
 		while (z.bitsbuflen >= 8) {
 			z.bitsbuflen -= 8;
 			z.ip--;
 		}
-		z.op = op;
+		z.op = q;
 	}
 	/**
 	 * decode huffman code (adaptive)
@@ -2973,36 +2964,36 @@ export class RawInflate {
 			dCT = Zlib.DistCodeTable,
 			dET = Zlib.DistExtraTable;
 		let o = z.output,
-			op = z.op,
+			q = z.op,
 			oL = o.length, //output position limit.
 			c; //huffman code.
 		z.currentLitlenTable = litlen;
 		while ((c = z.readCodeByTable(litlen)) !== 256) {
 			if (c < 256) {
-				if (op >= oL) {
+				if (q >= oL) {
 					o = z.expandBufferAdaptive(); // literal
 					oL = o.length;
 				}
-				o[op++] = c;
+				o[q++] = c;
 				continue;
 			}
 			const ti = c - 257; // length code
 			let cL = lCT[ti]; //huffman code length.
 			if (lET[ti] > 0) cL += z.readBits(lET[ti]);
 			const codeD = z.readCodeByTable(dist); // dist code
-			let codeDist = dCT[codeD]; //huffman code distination.
-			if (dET[codeD] > 0) codeDist += z.readBits(dET[codeD]);
-			if (op + cL > oL) {
+			let cDist = dCT[codeD]; //huffman code distination.
+			if (dET[codeD] > 0) cDist += z.readBits(dET[codeD]);
+			if (q + cL > oL) {
 				o = z.expandBufferAdaptive(); // lz77 decode
 				oL = o.length;
 			}
-			while (cL--) o[op] = o[op++ - codeDist];
+			while (cL--) o[q] = o[q++ - cDist];
 		}
 		while (z.bitsbuflen >= 8) {
 			z.bitsbuflen -= 8;
 			z.ip--;
 		}
-		z.op = op;
+		z.op = q;
 	}
 	/**
 	 * expand output buffer.
@@ -3012,13 +3003,13 @@ export class RawInflate {
 	expandBufferBlock() {
 		const z = this,
 			MBL = Zlib.MaxBackwardLength,
-			backward = z.op - MBL, //backward base point
-			buf = ZU.u8(backward), //store buffer.
+			bw = z.op - MBL, //backward base point
+			buf = ZU.u8(bw), //store buffer.
 			o = z.output;
 		buf.set(o.subarray(MBL, buf.length)); // copy to output buffer
 		z.blocks.push(buf);
 		z.totalpos += buf.length;
-		o.set(o.subarray(backward, backward + MBL)); // copy to backward buffer
+		o.set(o.subarray(bw, bw + MBL)); // copy to backward buffer
 		z.op = MBL;
 		return o;
 	}
@@ -3032,18 +3023,17 @@ export class RawInflate {
 			i = z.input,
 			o = z.output,
 			currentLen = o.length;
-		let ratio = (z.input.length / z.ip + 1) | 0, //expantion ratio.
-			newSize; //new output buffer size.
+		let r = (z.input.length / z.ip + 1) | 0, //expantion ratio.
+			newS; //new output buffer size.
 		if (currentLen === MAX_FIREFOX_SIZE) ZU.Err('TOO LOG LENGTH OF BUFFER ADAPTIVE!');
-		if (ZU.isN(opt.fixRatio)) ratio = opt.fixRatio;
-		if (ZU.isN(opt.addRatio)) ratio += opt.addRatio;
-		if (ratio < 2) {
+		if (ZU.isN(opt.fixRatio)) r = opt.fixRatio;
+		if (ZU.isN(opt.addRatio)) r += opt.addRatio;
+		if (r < 2) {
 			const maxHuffCode = (i.length - z.ip) / z.currentLitlenTable[2], // calculate new buffer size //maximum number of huffman code.
 				maxInflateSize = ((maxHuffCode / 2) * 258) | 0; //max inflate size.
-			newSize = maxInflateSize < currentLen ? currentLen + maxInflateSize : currentLen << 1;
-		} else newSize = currentLen * ratio;
-		const newSizeAdaptiveMax = MAX_FIREFOX_SIZE > newSize ? newSize : MAX_FIREFOX_SIZE,
-			buf = ZU.u8(newSizeAdaptiveMax); // buffer expantion //store buffer.
+			newS = maxInflateSize < currentLen ? currentLen + maxInflateSize : currentLen << 1;
+		} else newS = currentLen * r;
+		const buf = ZU.u8(MAX_FIREFOX_SIZE > newS ? newS : MAX_FIREFOX_SIZE); // buffer expantion //store buffer.
 		buf.set(o);
 		z.output = buf;
 		return z.output;
@@ -3074,11 +3064,11 @@ export class RawInflate {
 	concatBufferDynamic() {
 		let buf; //output buffer.
 		const z = this,
-			op = z.op;
+			q = z.op;
 		if (z.resize) {
-			buf = ZU.u8(op);
-			buf.set(z.output.subarray(0, op));
-		} else buf = z.output.subarray(0, op);
+			buf = ZU.u8(q);
+			buf.set(z.output.subarray(0, q));
+		} else buf = z.output.subarray(0, q);
 		z.buffer = buf;
 		return z.buffer;
 	}
@@ -3130,9 +3120,9 @@ export class Unzip extends Zip {
 	searchEndOfCentralDirectoryRecord() {
 		const i = this.input,
 			CDS = Unzip.CentralDirectorySignature;
-		for (let ip = i.length - 12; ip > 0; --ip) {
-			if (i[ip] === CDS[0] && i[ip + 1] === CDS[1] && i[ip + 2] === CDS[2] && i[ip + 3] === CDS[3]) {
-				this.eocdrOffset = ip;
+		for (let p = i.length - 12; p > 0; --p) {
+			if (i[p] === CDS[0] && i[p + 1] === CDS[1] && i[p + 2] === CDS[2] && i[p + 3] === CDS[3]) {
+				this.eocdrOffset = p;
 				return;
 			}
 		}
@@ -3143,35 +3133,35 @@ export class Unzip extends Zip {
 			i = z.input,
 			CDS = Unzip.CentralDirectorySignature;
 		if (!z.eocdrOffset) z.searchEndOfCentralDirectoryRecord();
-		let ip = z.eocdrOffset;
-		if (i[ip++] !== CDS[0] || i[ip++] !== CDS[1] || i[ip++] !== CDS[2] || i[ip++] !== CDS[3]) {
+		let p = z.eocdrOffset;
+		if (i[p++] !== CDS[0] || i[p++] !== CDS[1] || i[p++] !== CDS[2] || i[p++] !== CDS[3]) {
 			ZU.Err('invalid signature'); // signature
 		}
-		z.numberOfThisDisk = i[ip++] | (i[ip++] << 8); // number of z disk
-		z.startDisk = i[ip++] | (i[ip++] << 8); // number of the disk with the start of the central directory
-		z.totalEntriesThisDisk = i[ip++] | (i[ip++] << 8); // total number of entries in the central directory on z disk
-		z.totalEntries = i[ip++] | (i[ip++] << 8); // total number of entries in the central directory
-		z.centralDirectorySize = (i[ip++] | (i[ip++] << 8) | (i[ip++] << 16) | (i[ip++] << 24)) >>> 0; // size of the central directory
-		z.centralDirectoryOffset = (i[ip++] | (i[ip++] << 8) | (i[ip++] << 16) | (i[ip++] << 24)) >>> 0; // offset of start of central directory with respect to the starting disk number
-		z.commentLength = i[ip++] | (i[ip++] << 8); // .ZIP file comment length
-		z.comment = i.subarray(ip, ip + z.commentLength); // .ZIP file comment
+		z.numberOfThisDisk = i[p++] | (i[p++] << 8); // number of z disk
+		z.startDisk = i[p++] | (i[p++] << 8); // number of the disk with the start of the central directory
+		z.totalEntriesThisDisk = i[p++] | (i[p++] << 8); // total number of entries in the central directory on z disk
+		z.totalEntries = i[p++] | (i[p++] << 8); // total number of entries in the central directory
+		z.centralDirectorySize = (i[p++] | (i[p++] << 8) | (i[p++] << 16) | (i[p++] << 24)) >>> 0; // size of the central directory
+		z.centralDirectoryOffset = (i[p++] | (i[p++] << 8) | (i[p++] << 16) | (i[p++] << 24)) >>> 0; // offset of start of central directory with respect to the starting disk number
+		z.commentLength = i[p++] | (i[p++] << 8); // .ZIP file comment length
+		z.comment = i.subarray(p, p + z.commentLength); // .ZIP file comment
 	}
 	parseFileHeader() {
 		const z = this;
 		if (z.fileHeaderList) return;
 		if (z.centralDirectoryOffset === void 0) z.parseEndOfCentralDirectoryRecord();
-		let ip = z.centralDirectoryOffset;
-		const fileL = [],
-			fileT = {};
+		let p = z.centralDirectoryOffset;
+		const fL = [],
+			fT = {};
 		for (let i = 0, il = z.totalEntries; i < il; ++i) {
-			const fileH = new FileHeader(z.input, ip);
-			ip += fileH.length;
-			fileL[i] = fileH;
-			fileT[fileH.filename] = i;
+			const fH = new FileHeader(z.input, p);
+			p += fH.length;
+			fL[i] = fH;
+			fT[fH.filename] = i;
 		}
-		if (z.centralDirectorySize < ip - z.centralDirectoryOffset) ZU.Err('invalid file header size');
-		z.fileHeaderList = fileL;
-		z.filenameToIndex = fileT;
+		if (z.centralDirectorySize < p - z.centralDirectoryOffset) ZU.Err('invalid file header size');
+		z.fileHeaderList = fL;
+		z.filenameToIndex = fT;
 	}
 	/**
 	 * @param {number} index file header index.
@@ -3181,29 +3171,29 @@ export class Unzip extends Zip {
 	getFileData(index, opt = {}) {
 		const z = this,
 			ipt = z.input,
-			fileHL = z.fileHeaderList;
-		if (!fileHL) z.parseFileHeader();
-		if (fileHL[index] === void 0) ZU.Err('wrong index');
-		let offset = fileHL[index].relativeOffset;
-		const lFH = new LocalFileHeader(z.input, offset);
-		offset += lFH.length;
+			fHL = z.fileHeaderList;
+		if (!fHL) z.parseFileHeader();
+		if (fHL[index] === void 0) ZU.Err('wrong index');
+		let p = fHL[index].relativeOffset;
+		const lFH = new LocalFileHeader(z.input, p);
+		p += lFH.length;
 		let l = lFH.compressedSize;
 		if ((lFH.flags & LocalFileHeader.Flags.ENCRYPT) !== 0) {
 			if (!(opt.password || z.password)) ZU.Err('please set password'); // decryption
-			const key = Unzip.createDecryptionKey(opt.password || z.password);
-			for (let i = offset, il = offset + 12; i < il; ++i) Unzip.decode(key, ipt[i]); // encryption header
-			offset += 12;
+			const k = Unzip.createDecryptionKey(opt.password || z.password);
+			for (let i = p, il = p + 12; i < il; ++i) Unzip.decode(k, ipt[i]); // encryption header
+			p += 12;
 			l -= 12;
-			for (let i = offset, il = offset + l; i < il; ++i) ipt[i] = Unzip.decode(key, ipt[i]); // decryption
+			for (let i = p, il = p + l; i < il; ++i) ipt[i] = Unzip.decode(k, ipt[i]); // decryption
 		}
 		let buf;
 		switch (lFH.compression) {
 			case Unzip.CompressionMethod.STORE:
-				buf = ipt.subarray(offset, offset + l);
+				buf = ipt.subarray(p, p + l);
 				break;
 			case Unzip.CompressionMethod.DEFLATE:
 				buf = new RawInflate(ipt, {
-					index: offset,
+					index: p,
 					bufferSize: lFH.plainSize,
 				}).decompress();
 				break;
