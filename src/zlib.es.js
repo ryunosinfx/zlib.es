@@ -237,14 +237,11 @@ class FileHeader {
 	 * @constructor
 	 */
 	constructor(input, ip) {
-		this.input = /** @type {!(Uint8Array)} */ input;
-		this.offset = /** @type {number} */ ip;
-		this.parse();
-	}
-	parse() {
 		const z = this,
-			i = z.input,
+			i = input,
 			FS = Zip.FileHeaderSignature;
+		z.input = /** @type {!(Uint8Array)} */ i;
+		z.offset = /** @type {number} */ ip;
 		let p = z.offset;
 		if (i[p++] !== FS[0] || i[p++] !== FS[1] || i[p++] !== FS[2] || i[p++] !== FS[3])
 			ZU.Err('invalid file header signature'); // central file header signature
@@ -1450,7 +1447,7 @@ class Zip {
 		const CM = Zlib.CM,
 			i = input,
 			u = opt;
-		const filename = /** @type {string} */ opt.filename ? opt.filename : '';
+		const fn = /** @type {string} */ opt.filename ? opt.filename : '';
 		let compressed = /** @type {boolean} */ void 0,
 			crc32 = /** @type {number} */ 0,
 			b = ZU.isAI(i) ? ZU.u8(i) : i;
@@ -1469,7 +1466,7 @@ class Zip {
 			encrypted: !!u.password,
 			size: i.length,
 			crc32,
-			filename,
+			filename: fn,
 		});
 	}
 	/**
@@ -1577,21 +1574,21 @@ class Zip {
 			o[q1++] = o[q2++] = (dt.getHours() << 3) | (dt.getMinutes() >> 3);
 			o[q1++] = o[q2++] = (((dt.getMonth() + 1) & 0x7) << 5) | dt.getDate();
 			o[q1++] = o[q2++] = (((dt.getFullYear() - 1980) & 0x7f) << 1) | ((dt.getMonth() + 1) >> 3);
-			const crc32 = f.crc32; // CRC-32
-			o[q1++] = o[q2++] = crc32 & ff;
-			o[q1++] = o[q2++] = (crc32 >> 8) & ff;
-			o[q1++] = o[q2++] = (crc32 >> 16) & ff;
-			o[q1++] = o[q2++] = (crc32 >> 24) & ff;
-			const size = f.buffer.length; // compressed size
-			o[q1++] = o[q2++] = size & ff;
-			o[q1++] = o[q2++] = (size >> 8) & ff;
-			o[q1++] = o[q2++] = (size >> 16) & ff;
-			o[q1++] = o[q2++] = (size >> 24) & ff;
-			const plainSize = f.size; // uncompressed size
-			o[q1++] = o[q2++] = plainSize & ff;
-			o[q1++] = o[q2++] = (plainSize >> 8) & ff;
-			o[q1++] = o[q2++] = (plainSize >> 16) & ff;
-			o[q1++] = o[q2++] = (plainSize >> 24) & ff;
+			const cr = f.crc32; // CRC-32
+			o[q1++] = o[q2++] = cr & ff;
+			o[q1++] = o[q2++] = (cr >> 8) & ff;
+			o[q1++] = o[q2++] = (cr >> 16) & ff;
+			o[q1++] = o[q2++] = (cr >> 24) & ff;
+			const sz = f.buffer.length; // compressed size
+			o[q1++] = o[q2++] = sz & ff;
+			o[q1++] = o[q2++] = (sz >> 8) & ff;
+			o[q1++] = o[q2++] = (sz >> 16) & ff;
+			o[q1++] = o[q2++] = (sz >> 24) & ff;
+			const ps = f.size; // uncompressed size
+			o[q1++] = o[q2++] = ps & ff;
+			o[q1++] = o[q2++] = (ps >> 8) & ff;
+			o[q1++] = o[q2++] = (ps >> 16) & ff;
+			o[q1++] = o[q2++] = (ps >> 24) & ff;
 			o[q1++] = o[q2++] = fnLen & ff; // filename length
 			o[q1++] = o[q2++] = (fnLen >> 8) & ff;
 			o[q1++] = o[q2++] = exFldLen & ff; // extra field length
@@ -2073,9 +2070,9 @@ class Gzip {
 			o[q++] = 0; // null termination
 		}
 		if (f.fhcrc) {
-			const crc16 = C(o, 0, q) & 0xffff; // fhcrc CRC-16 value for FHCRC flag.
-			o[q++] = crc16 & ff;
-			o[q++] = (crc16 >>> 8) & ff;
+			const cr = C(o, 0, q) & 0xffff; // fhcrc CRC-16 value for FHCRC flag.
+			o[q++] = cr & ff;
+			o[q++] = (cr >>> 8) & ff;
 		}
 		d.outputBuffer = o; // add compress option
 		d.outputIndex = q;
@@ -2131,7 +2128,7 @@ class InflateStream {
 			t.set(i, j.length);
 			z.input = t;
 		}
-		if (z.method === void 0 && z.readHeader() < 0) return ZU.u8();
+		if (z.method === void 0 && !z.readHeader()) return ZU.u8();
 		const b = /** @type {!(Uint8Array)} inflated buffer. */ ri.decompress(z.input, z.ip);
 		if (ri.ip !== 0) {
 			z.input = z.input.subarray(ri.ip);
@@ -2157,7 +2154,7 @@ class InflateStream {
 			i = z.input,
 			cmf = i[p++], // Compression Method and Flags
 			flg = i[p++];
-		if (cmf === void 0 || flg === void 0) return -1;
+		if (cmf === void 0 || flg === void 0) return 0;
 		z.method = Inflate.getMethod(cmf, flg);
 		z.ip = p;
 	}
@@ -2295,19 +2292,19 @@ class RawInflateStream {
 			switch (z.status) {
 				case S.INITIALIZED: // block header// decompress
 				case S.BLOCK_HEADER_START:
-					if (z.readBlockHeader() < 0) stop = T;
+					stop = z.readBlockHeader();
 					break;
 				case S.BLOCK_HEADER_END: /* FALLTHROUGH */ // block body
 				case S.BLOCK_BODY_START:
 					switch (z.currentBT) {
 						case BT.UNCOMPRESSED:
-							if (z.readUncompressedBlockHeader() < 0) stop = T;
+							stop = z.readUncompressedBlockHeader();
 							break;
 						case BT.FIXED:
-							if (z.parseFixedHuffmanBlock() < 0) stop = T;
+							stop = z.parseFixedHuffmanBlock();
 							break;
 						case BT.DYNAMIC:
-							if (z.parseDynamicHuffmanBlock() < 0) stop = T;
+							stop = z.parseDynamicHuffmanBlock();
 							break;
 					}
 					break;
@@ -2315,11 +2312,11 @@ class RawInflateStream {
 				case S.DECODE_BLOCK_START:
 					switch (z.currentBT) {
 						case BT.UNCOMPRESSED:
-							if (z.parseUncompressedBlock() < 0) stop = T;
+							stop = z.parseUncompressedBlock();
 							break;
 						case BT.FIXED: /* FALLTHROUGH */
 						case BT.DYNAMIC:
-							if (z.decodeHuffman() < 0) stop = T;
+							stop = z.decodeHuffman();
 							break;
 					}
 					break;
@@ -2357,7 +2354,7 @@ class RawInflateStream {
 			S = RawInflateStream.Status;
 		let p = z.ip;
 		z.status = S.BLOCK_BODY_START;
-		if (p + 4 >= i.length) return -1;
+		if (p + 4 >= i.length) return T;
 		const l = /** @type {number} block length */ i[p++] | (i[p++] << 8),
 			nL = /** @type {number} number for check block length */ i[p++] | (i[p++] << 8);
 		if (l === ~nL) ZU.Err('invalid uncompressed block header: length verify'); // check len & nlen
@@ -2387,14 +2384,13 @@ class RawInflateStream {
 				z.ip = p; // not enough input buffer
 				z.op = q;
 				z.blockLength = l + 1; // コピーしてないので戻す
-				return -1;
+				return T;
 			}
 			o[q++] = i[p++];
 		}
 		if (l < 0) z.status = S.DECODE_BLOCK_END;
 		z.ip = p;
 		z.op = q;
-		return 0;
 	}
 	/**
 	 * parse fixed huffman block.
@@ -2405,7 +2401,6 @@ class RawInflateStream {
 		this.litlenTable = Zlib.FLLT;
 		this.distTable = Zlib.FDT;
 		this.status = S.BLOCK_BODY_END;
-		return 0;
 	}
 	/**
 	 * オブジェクトのコンテキストを別のプロパティに退避する.
@@ -2427,7 +2422,7 @@ class RawInflateStream {
 		z.ip = z.ip_;
 		z.bitsbuflen = z.bitsbuflen_;
 		z.bitsbuf = z.bitsbuf_;
-		return -1;
+		return T;
 	}
 	/**
 	 * parse dynamic huffman block.
@@ -2454,7 +2449,6 @@ class RawInflateStream {
 			return z.restore_();
 		}
 		z.status = S.BLOCK_BODY_END;
-		return 0;
 	}
 	/**
 	 * decode huffman code (dynamic)
