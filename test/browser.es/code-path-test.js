@@ -39,7 +39,11 @@ describe('code path', function () {
 	it('uncompressed random data', function (done) {
 		testData = makeRandomData(size);
 
-		compressionAndDecompressionTest(testData, Zlib.Deflate.CompressionType.NONE, 'uncompressed random data');
+		compressionAndDecompressionTest(
+			testData,
+			Zlib.Deflate.CompressionType.UNCOMPRESSED,
+			'uncompressed random data'
+		);
 
 		chai.assert(none.called === true);
 		chai.assert(fixed.called === false);
@@ -72,7 +76,11 @@ describe('code path', function () {
 	it('uncompressed sequential data', function (done) {
 		testData = makeSequentialData(testData);
 
-		compressionAndDecompressionTest(testData, Zlib.Deflate.CompressionType.NONE, 'uncompressed sequential data');
+		compressionAndDecompressionTest(
+			testData,
+			Zlib.Deflate.CompressionType.UNCOMPRESSED,
+			'uncompressed sequential data'
+		);
 
 		chai.assert(none.called === true);
 		chai.assert(fixed.called === false);
@@ -107,7 +115,7 @@ describe('code path', function () {
 
 		compressionAndDecompressionTest(
 			testData,
-			Zlib.Deflate.CompressionType.NONE,
+			Zlib.Deflate.CompressionType.UNCOMPRESSED,
 			'uncompressed random sequential data'
 		);
 
@@ -151,7 +159,7 @@ describe('code path', function () {
 
 		compressionAndDecompressionByStreamTest(
 			testData,
-			Zlib.Deflate.CompressionType.NONE,
+			Zlib.Deflate.CompressionType.UNCOMPRESSED,
 			'uncompressed random sequential data (stream)'
 		);
 
