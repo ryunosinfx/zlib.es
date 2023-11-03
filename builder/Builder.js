@@ -149,27 +149,20 @@ export class Builder {
 
 		const b = f.join(' ');
 		let l = b ? b + '' : '';
-		const ks = ':;,-+=*><(){}?/'.split('');
+		const ks = ':;,-+=*><(){}?/|^'.split('');
 		ks.push('!==');
 		ks.push('||');
 		ks.push('&&');
-		for (const k of ks) {
-			l = l
-				.split(' ' + k)
-				.join(k)
-				.split(k + ' ')
-				.join(k)
-				.split(k + ' ' + k)
-				.join(k + k);
-		}
-		for (const k of ks) {
-			l = l
-				.split(' ' + k)
-				.join(k)
-				.split(k + ' ')
-				.join(k)
-				.split(k + ' ' + k)
-				.join(k + k);
+		for (let i = 0; i < 10; i++) {
+			for (const k of ks) {
+				l = l
+					.split(' ' + k)
+					.join(k)
+					.split(k + ' ')
+					.join(k)
+					.split(k + ' ' + k)
+					.join(k + k);
+			}
 		}
 		console.log(l);
 		const l2 = l.replace(/\/\*[^\/]+\*\//g, '');
