@@ -1,5 +1,4 @@
-zlib.js
-=======
+# zlib.js
 
 [![Greenkeeper badge](https://badges.greenkeeper.io/imaya/zlib.js.svg)](https://greenkeeper.io/)
 
@@ -9,29 +8,28 @@ zlib.js
 
 zlib.js は ZLIB(RFC1950), DEFLATE(RFC1951), GZIP(RFC1952), PKZIP の JavaScript 実装です。
 
-
-使い方
-------
+## 使い方
 
 zlib.js は必要な機能ごとに分割されています。
 bin ディレクトリから必要なものを利用してください。
 
-- zlib_and_gzip.min.js: ZLIB + GZIP
-    + (Raw)
-        * rawdeflate.js: Raw Deflate
-        * raw.js: Raw Inflate
-    + zlib.min.js: ZLIB Inflate + Deflate
-        * inflate.min.js: ZLIB Inflate
-        * deflate.min.js: ZLIB Deflate
-        * inflate_stream.min.js: ZLIB Inflate (stream mode)
-    + (GZIP)
-        * gzip.min.js: GZIP
-        * gunzip.min.js: GUNZIP
-    + (PKZIP)
-        * zip.min.js ZIP
-        * unzip.min.js UNZIP
-- node-zlib.js: (ZLIB + GZIP for node.js)
-
+-   zlib_and_gzip.min.js: ZLIB + GZIP
+    -   (Raw)
+        -   rawdeflate.js: Raw Deflate
+        -   raw.js: Raw Inflate
+    -   zlib.min.js: ZLIB Inflate + Deflate
+        -   inflate.min.js: ZLIB Inflate
+        -   deflate.min.js: ZLIB Deflate
+        -   inflate_stream.min.js: ZLIB Inflate (stream mode)
+    -   (GZIP)
+        -   gzip.min.js: GZIP
+        -   gunzip.min.js: GUNZIP
+    -   (PKZIP)
+        -   zip.min.js ZIP
+        -   unzip.min.js UNZIP
+-   node-zlib.js: (ZLIB + GZIP for node.js)
+-   zlib.es.min.js
+    -   全部入り
 
 ### 圧縮 (Compress)
 
@@ -46,7 +44,6 @@ var compressed = deflate.compress();
 #### Raw Deflate Option
 
 ZLIB Option を参照してください。
-
 
 #### ZLIB
 
@@ -74,7 +71,6 @@ default は <code>DYNAMIC</code> です。
 <code>lazy</code> は Lazy Matching の閾値を指定します。
 Lazy Matching とは、LZSS のマッチ長が閾値より低かった場合、次の Byte から LZSS の最長一致を試み、マッチ長の長い方を選択する手法です。
 
-
 #### GZIP
 
 GZIP の実装は現在不完全ですが、ただの圧縮コンテナとして使用する場合には特に問題はありません。
@@ -85,7 +81,6 @@ zlib.js を用いて作成された GZIP の OS は、自動的に UNKNOWN に�
 var gzip = new Zlib.Gzip(plain);
 var compressed = gzip.compress();
 ```
-
 
 ##### GZIP Option
 
@@ -102,7 +97,6 @@ var compressed = gzip.compress();
 }
 ```
 
-
 #### PKZIP
 
 PKZIP では複数のファイルを扱うため、他のものとは少し使い方が異なります。
@@ -111,26 +105,26 @@ PKZIP では複数のファイルを扱うため、他のものとは少し使�
 var zip = new Zlib.Zip();
 // plainData1
 zip.addFile(plainData1, {
-    filename: stringToByteArray('foo.txt')
+	filename: stringToByteArray('foo.txt'),
 });
 zip.addFile(plainData2, {
-    filename: stringToByteArray('bar.txt')
+	filename: stringToByteArray('bar.txt'),
 });
 zip.addFile(plainData3, {
-    filename: stringToByteArray('baz.txt')
+	filename: stringToByteArray('baz.txt'),
 });
 var compressed = zip.compress();
 
 function stringToByteArray(str) {
-    var array = new (window.Uint8Array !== void 0 ? Uint8Array : Array)(str.length);
-    var i;
-    var il;
+	var array = new (window.Uint8Array !== void 0 ? Uint8Array : Array)(str.length);
+	var i;
+	var il;
 
-    for (i = 0, il = str.length; i < il; ++i) {
-        array[i] = str.charCodeAt(i) & 0xff;
-    }
+	for (i = 0, il = str.length; i < il; ++i) {
+		array[i] = str.charCodeAt(i) & 0xff;
+	}
 
-    return array;
+	return array;
 }
 ```
 
@@ -191,8 +185,8 @@ var plain = inflate.decompress();
 
 <code>Zlib.Inflate.BufferType</code> は <code>ADAPTIVE</code>(default) か <code>BLOCK</code> を選択する事ができます。
 
-- <code>ADAPTIVE</code> はバッファを伸張後のサイズを予測して一気に拡張しますが、データによっては余分にメモリを使用しすぎる事があります。
-- <code>BLOCK</code> では <code>BufferSize</code> ずつ拡張していきますが、動作はあまり速くありません。
+-   <code>ADAPTIVE</code> はバッファを伸張後のサイズを予測して一気に拡張しますが、データによっては余分にメモリを使用しすぎる事があります。
+-   <code>BLOCK</code> では <code>BufferSize</code> ずつ拡張していきますが、動作はあまり速くありません。
 
 <code>resize</code> オプションは Typed Array 利用可能時
 <code>decompress</code> メソッドで返却する値の <code>ArrayBuffer</code> を <code>Uint8Array</code> の長さまで縮小させます。
@@ -200,7 +194,6 @@ default は <code>false</code> です。
 
 <code>verify</code> オプションは Adler-32 Checksum の検証を行うかを指定します。
 default は <code>false</code> です。
-
 
 #### GZIP
 
@@ -211,7 +204,6 @@ var plain = gunzip.decompress();
 ```
 
 Gunzip のオプションは現在ありません。
-
 
 #### PKZIP
 
@@ -226,18 +218,15 @@ var plain = unzip.decompress(filenames[0]);
 
 Unzip のオプションは現在ありません。
 
-
 ### Node.js
 
 Node.js で使用する場合はユニットテストを参照してください。
 <https://github.com/imaya/zlib.js/blob/master/test/node-test.js>
 
-
 ## Debug
 
 zlib.js では JavaScript ファイルを minify された形で提供していますが、開発中やデバッグ時に minify する前の状態が知りたい事があります。
 そういった時のために SourceMaps ファイルや Pretty Print されたファイルも提供しています。
-
 
 ### Source Map
 
@@ -247,23 +236,19 @@ Source Map を使いたい場合はファイル名に `dev` のついたバー�
     - inflate.min.js // リリースバージョン
     - inflate.dev.min.js // 開発バージョン（これを使う）
 
-
 ### Pretty Print
 
 SourceMaps とは異なりますが、minify の変数名の短縮のみ避けられれば良いという場合には、 Closure Compiler で読みやすくしたファイルを利用することも可能です。
 `zlib.pretty.js` というファイル名で全ての実装がはいっていますので、minify されたものをこのファイルに置き換えるだけで使用できます。
 
-
-
-How to build
-------------
+## How to build
 
 ビルドは Grunt と Closure Compiler を使用して行います。
 
 ### 必要な環境
 
-- Grunt
-- Python
+-   Grunt
+-   Python
 
 ### ビルド
 
@@ -275,26 +260,26 @@ $ grunt [target]
 
 #### ビルドターゲット
 
-target         | ファイル名             | 含まれる実装
----------------|-----------------------|-------------
-deps           | deps.js               | 依存関係の解決
-deflate        | deflate.min.js        | ZLIB Deflate
-inflate        | inflate.min.js        | ZLIB Inflate
-inflate_stream | inlfate_stream.min.js | ZLIB Inlate (stream)
-zlib           | zlib.min.js           | ZLIB Deflate + Inflate
-gzip           | gzip.min.js           | GZIP Compression
-gunzip         | gunzip.min.js         | GZIP Decompression
-zlib_and_gzip  | zlib_and_gzip.min.js  | ZLIB + GZIP
-node           | node-zlib.js          | ZLIB + GZIP for node.js
-zip            | zip.min.js            | PKZIP Compression
-unzip          | unzip.min.js          | PKZIP Decompression
-all            | *                     | default target
+| target         | ファイル名            | 含まれる実装            |
+| -------------- | --------------------- | ----------------------- |
+| deps           | deps.js               | 依存関係の解決          |
+| deflate        | deflate.min.js        | ZLIB Deflate            |
+| inflate        | inflate.min.js        | ZLIB Inflate            |
+| inflate_stream | inlfate_stream.min.js | ZLIB Inlate (stream)    |
+| zlib           | zlib.min.js           | ZLIB Deflate + Inflate  |
+| gzip           | gzip.min.js           | GZIP Compression        |
+| gunzip         | gunzip.min.js         | GZIP Decompression      |
+| zlib_and_gzip  | zlib_and_gzip.min.js  | ZLIB + GZIP             |
+| node           | node-zlib.js          | ZLIB + GZIP for node.js |
+| zip            | zip.min.js            | PKZIP Compression       |
+| unzip          | unzip.min.js          | PKZIP Decompression     |
+| all            | \*                    | default target          |
 
-
-テスト
-------
+## テスト
 
 ブラウザでは Karma, Node.js では mocha を使ってテストを行います。
+
+zlib.es.jsはES Moduleをhtmlにロードしてテストためサーバーを起動する必要が有ります。
 
 ```
 $ npm test
@@ -312,16 +297,27 @@ $ npm run test-karma
 $ npm run test-mocha
 ```
 
+### zlib.esのブラウザのみのテスト
 
-Issue
------
+http://127.0.0.1:8088
+にサーバーが起動します。
+
+http://127.0.0.1:8088/test_on_browser.html
+http://127.0.0.1:8088/test_on_browser.min.html
+
+を開くとmochaのテストが自走します。
+ただし、node_modulesにpackage.jsonのバージョンモジュールが必要です。
+
+```
+$ node server.mjs
+```
+
+## Issue
 
 現在プリセット辞書を用いた圧縮形式には対応していません。
 プリセット辞書は通常の圧縮では利用されないため、影響は少ないと思います。
 
-
-ライセンス
------------
+## ライセンス
 
 Copyright &copy; 2012 imaya.
 Licensed under the MIT License.

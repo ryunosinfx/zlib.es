@@ -1,5 +1,4 @@
-zlib.js
-=======
+# zlib.js
 
 [![Build Status](https://travis-ci.org/imaya/zlib.js.png?branch=master)](https://travis-ci.org/imaya/zlib.js)
 
@@ -7,28 +6,27 @@ zlib.js
 
 zlib.js is ZLIB(RFC1950), DEFLATE(RFC1951), GZIP(RFC1952) and PKZIP implementation in JavaScript.
 
-
-Usage
-------
+## Usage
 
 Use one in "bin" directory.
 
-- zlib_and_gzip.min.js: ZLIB + GZIP
-    + (Raw)
-        * rawdeflate.js: Raw Deflate
-        * rawinflate.js: Raw Inflate
-    + zlib.min.js: ZLIB Inflate + Deflate
-        * inflate.min.js: ZLIB Inflate
-        * deflate.min.js: ZLIB Deflate
-        * inflate_stream.min.js: ZLIB Inflate (stream mode)
-    + (GZIP)
-        * gzip.min.js: GZIP
-        * gunzip.min.js: GUNZIP
-    + (PKZIP)
-        * zip.min.js ZIP
-        * unzip.min.js UNZIP
-- node-zlib.js: (ZLIB + GZIP for node.js)
-
+-   zlib_and_gzip.min.js: ZLIB + GZIP
+    -   (Raw)
+        -   rawdeflate.js: Raw Deflate
+        -   rawinflate.js: Raw Inflate
+    -   zlib.min.js: ZLIB Inflate + Deflate
+        -   inflate.min.js: ZLIB Inflate
+        -   deflate.min.js: ZLIB Deflate
+        -   inflate_stream.min.js: ZLIB Inflate (stream mode)
+    -   (GZIP)
+        -   gzip.min.js: GZIP
+        -   gunzip.min.js: GUNZIP
+    -   (PKZIP)
+        -   zip.min.js ZIP
+        -   unzip.min.js UNZIP
+-   node-zlib.js: (ZLIB + GZIP for node.js)
+-   zlib.es.min.js
+    -   all in one!(ES module)
 
 ### Compression
 
@@ -70,18 +68,16 @@ Default value is <code>DYNAMIC</code>.
 <code>lazy</code> is Lazy Matching length.
 This parameter is deprecated.
 
-
 #### GZIP
 
 GZIP implementation is incomplete.
-However, there is no problem in usual use. 
+However, there is no problem in usual use.
 
 ```js
 // plain = Array.<number> or Uint8Array
 var gzip = new Zlib.Gzip(plain);
 var compressed = gzip.compress();
 ```
-
 
 ##### GZIP Option
 
@@ -98,33 +94,32 @@ var compressed = gzip.compress();
 }
 ```
 
-
 #### PKZIP
 
 ```js
 var zip = new Zlib.Zip();
 // plainData1
 zip.addFile(plainData1, {
-    filename: stringToByteArray('foo.txt')
+	filename: stringToByteArray('foo.txt'),
 });
 zip.addFile(plainData2, {
-    filename: stringToByteArray('bar.txt')
+	filename: stringToByteArray('bar.txt'),
 });
 zip.addFile(plainData3, {
-    filename: stringToByteArray('baz.txt')
+	filename: stringToByteArray('baz.txt'),
 });
 var compressed = zip.compress();
 
 function stringToByteArray(str) {
-    var array = new (window.Uint8Array !== void 0 ? Uint8Array : Array)(str.length);
-    var i;
-    var il;
+	var array = new (window.Uint8Array !== void 0 ? Uint8Array : Array)(str.length);
+	var i;
+	var il;
 
-    for (i = 0, il = str.length; i < il; ++i) {
-        array[i] = str.charCodeAt(i) & 0xff;
-    }
+	for (i = 0, il = str.length; i < il; ++i) {
+		array[i] = str.charCodeAt(i) & 0xff;
+	}
 
-    return array;
+	return array;
 }
 ```
 
@@ -172,7 +167,7 @@ Second argument of Zlib.Inflate constructor
 
 ```js
 {
-    'index': number, // start position in input buffer 
+    'index': number, // start position in input buffer
     'bufferSize': number, // initial output buffer size
     'bufferType': Zlib.Inflate.BufferType, // buffer expantion type
     'resize': boolean, // resize buffer(ArrayBuffer) when end of decompression (default: false)
@@ -183,9 +178,8 @@ Second argument of Zlib.Inflate constructor
 <code>Zlib.Inflate.BufferType</code> is enumerable.
 Choose one <code>ADAPTIVE</code>(default) and <code>BLOCK</code>.
 
-- <code>ADAPTIVE</code>: buffer expansion based on compression ratio in filled buffer.
-- <code>BLOCK</code>: buffer expansion based on <code>BufferSize</code>.
-
+-   <code>ADAPTIVE</code>: buffer expansion based on compression ratio in filled buffer.
+-   <code>BLOCK</code>: buffer expansion based on <code>BufferSize</code>.
 
 #### GZIP
 
@@ -195,9 +189,7 @@ var gunzip = new Zlib.Gunzip(compressed);
 var plain = gunzip.decompress();
 ```
 
-
 #### PKZIP
-
 
 ```js
 // compressed = Array.<number> or Uint8Array
@@ -206,17 +198,14 @@ var filenames = unzip.getFilenames();
 var plain = unzip.decompress(filenames[0]);
 ```
 
-
 ### Node.js
 
 see unit tests.
 <https://github.com/imaya/zlib.js/blob/master/test/node-test.js>
 
-
 ## Debug
 
 If you want to know the code before compile, SourceMaps and PrettyPrint can be used.
-
 
 ### Source Map
 
@@ -227,21 +216,18 @@ For example, you want to use Inflate with Source Map.
     - inflate.min.js // release version
     - inflate.dev.min.js // development version <- use this
 
-
 ### Pretty Print
 
 `zlib.pretty.js` is not renamed symbol.
 
-
-How to build
-------------
+## How to build
 
 Build using Grunt and Closure Compiler.
 
 ### Requirement
 
-- Grunt
-- Python
+-   Grunt
+-   Python
 
 ### Build
 
@@ -253,24 +239,22 @@ $ grunt [target]
 
 #### Build target
 
-target         | generate file         | implementation
----------------|-----------------------|-------------
-deps           | deps.js               | (dependency: deps.js)
-deflate        | deflate.min.js        | ZLIB Deflate
-inflate        | inflate.min.js        | ZLIB Inflate
-inflate_stream | inflate_stream.min.js | ZLIB Inflate (stream)
-zlib           | zlib.min.js           | ZLIB Deflate + Inflate
-gzip           | gzip.min.js           | GZIP Compression
-gunzip         | gunzip.min.js         | GZIP Decompression
-zlib_and_gzip  | zlib_and_gzip.min.js  | ZLIB + GZIP
-node           | node-zlib.js          | ZLIB + GZIP for node.js
-zip            | zip.min.js            | PKZIP Compression
-unzip          | unzip.min.js          | PKZIP Decompression
-all            | *                     | default target
+| target         | generate file         | implementation          |
+| -------------- | --------------------- | ----------------------- |
+| deps           | deps.js               | (dependency: deps.js)   |
+| deflate        | deflate.min.js        | ZLIB Deflate            |
+| inflate        | inflate.min.js        | ZLIB Inflate            |
+| inflate_stream | inflate_stream.min.js | ZLIB Inflate (stream)   |
+| zlib           | zlib.min.js           | ZLIB Deflate + Inflate  |
+| gzip           | gzip.min.js           | GZIP Compression        |
+| gunzip         | gunzip.min.js         | GZIP Decompression      |
+| zlib_and_gzip  | zlib_and_gzip.min.js  | ZLIB + GZIP             |
+| node           | node-zlib.js          | ZLIB + GZIP for node.js |
+| zip            | zip.min.js            | PKZIP Compression       |
+| unzip          | unzip.min.js          | PKZIP Decompression     |
+| all            | \*                    | default target          |
 
-
-Test
-------
+## Test
 
 Unit tests are using Karma and mocha.
 
@@ -290,15 +274,25 @@ $ npm run test-karma
 $ npm run test-mocha
 ```
 
+### Browser only for zlib.es
 
-Issue
------
+http://127.0.0.1:8088
+Need to Start http server for Tests.
+
+http://127.0.0.1:8088/test_on_browser.html
+http://127.0.0.1:8088/test_on_browser.min.html
+
+The Urls opend by Browser, then Tests are starting automaticaly.
+
+```
+$ node server.mjs
+```
+
+## Issue
 
 Preset dictionary is not implemented.
 
-
-License
---------
+## License
 
 Copyright &copy; 2012 imaya.
 Licensed under the MIT License.
