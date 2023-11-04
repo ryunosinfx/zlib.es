@@ -1,5 +1,7 @@
 // import { describe, before, it } from './staff/mocha-importer.es.js';
-import { Zlib } from '../../src/zlib.es.js';
+import { Zlib } from '../../../src/zlib.es.js';
+// import { Zlib } from '../../../src/zlib.es.min.js';
+// import { Zlib } from '../../../bin/zlib.es.min.js';
 import { assertArray, stringToByteArray, base64toArray } from './staff/util.js';
 describe('unzip', function () {
 	this.timeout(60000);

@@ -1,5 +1,7 @@
 import chai from './staff/chai-importer.es.js';
-import { Zlib } from '../../src/zlib.es.js';
+import { Zlib } from '../../../src/zlib.es.js';
+// import { Zlib } from '../../../src/zlib.es.min.js';
+// import { Zlib } from '../../../bin/zlib.es.min.js';
 import { decompressionTest } from './staff/base.js';
 import { assertArray, base64toArray } from './staff/util.js';
 describe('Zlib.Inflate', function () {

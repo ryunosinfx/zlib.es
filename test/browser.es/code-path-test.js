@@ -2,7 +2,9 @@ import chai from './staff/chai-importer.es.js';
 import sinon from '../../node_modules/sinon/pkg/sinon-esm.js';
 import { compressionAndDecompressionByStreamTest, compressionAndDecompressionTest } from './staff/base.js';
 import { makeRandomData, makeRandomSequentialData, makeSequentialData, assertArray } from './staff/util.js';
-import { Zlib } from '../../src/zlib.es.js';
+import { Zlib } from '../../../src/zlib.es.js';
+// import { Zlib } from '../../../src/zlib.es.min.js';
+// import { Zlib } from '../../../bin/zlib.es.min.js';
 // eslint-disable-next-line no-undef
 describe('code path', function () {
 	const size = 76543;

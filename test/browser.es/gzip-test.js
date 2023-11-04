@@ -1,6 +1,8 @@
 import chai from './staff/chai-importer.es.js';
 // import { describe, before, it } from './staff/mocha-importer.es.js';
-import { Zlib } from '../../src/zlib.es.js';
+import { Zlib } from '../../../src/zlib.es.js';
+// import { Zlib } from '../../../src/zlib.es.min.js';
+// import { Zlib } from '../../../bin/zlib.es.min.js';
 import { assertArray, makeRandomSequentialData } from './staff/util.js';
 // eslint-disable-next-line no-undef
 describe('gzip', function () {

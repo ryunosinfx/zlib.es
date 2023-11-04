@@ -1,5 +1,7 @@
 import chai from './chai-importer.es.js';
 import { Zlib } from '../../../src/zlib.es.js';
+// import { Zlib } from '../../../src/zlib.es.min.js';
+// import { Zlib } from '../../../bin/zlib.es.min.js';
 import { assertArray } from './util.js';
 import * as z from '../../../bin/zlib.pretty.dev.js';
 // inflate test

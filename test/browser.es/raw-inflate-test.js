@@ -1,5 +1,7 @@
 import chai from './staff/chai-importer.es.js';
-import { Zlib } from '../../src/zlib.es.js';
+import { Zlib } from '../../../src/zlib.es.js';
+// import { Zlib } from '../../../src/zlib.es.min.js';
+// import { Zlib } from '../../../bin/zlib.es.min.js';
 import { assertArray, makeRandomData, makeRandomSequentialData, makeSequentialData } from './staff/util.js';
 //define(['base', 'rawinflate', 'util'], function() {
 describe('raw-inflate', function () {
