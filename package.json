@@ -11,9 +11,9 @@
   ],
   "name": "zlibjs.es",
   "description": "zlib, gzip and zip implementation in JavaScript as esmodule forked from https://github.com/imaya/zlib.js",
-  "version": "0.3.1b",
+  "version": "0.3.1c",
 	"keywords": [
-		"zlib infrate defrate zip pkzip esmodule"
+		"zlib","infrate","defrate","zip","pkzip","esmodule"
 	],
   "license": "MIT",
   "main": "./bin/zlib.es.js",
