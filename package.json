@@ -11,7 +11,7 @@
   ],
   "name": "zlibjs.es",
   "description": "zlib, gzip and zip implementation in JavaScript forked from https://github.com/imaya/zlib.js",
-  "version": "0.3.1",
+  "version": "0.3.1a",
   "license": "MIT",
   "main": "./bin/zlib.es.js",
   "homepage": "https://github.com/ryunosinfx/zlib.es",
