@@ -1,8 +1,14 @@
 {
   "author": {
-    "name": "Ryunosinfx",
-    "email": "ryunosinfxxul@gmail.com"
+    "name": "Yuta Imaya",
+    "email": "imaya.devel@gmail.com"
   },
+  "contributors": [
+    {
+      "name": "ryunosinfx",
+      "email": "ryunosinfxxul@gmail.com"
+    }
+  ],
   "name": "zlibjs.es",
   "description": "zlib, gzip and zip implementation in JavaScript forked from https://github.com/imaya/zlib.js",
   "version": "0.3.1",
